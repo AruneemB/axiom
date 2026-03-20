@@ -1,0 +1,11 @@
+{
+  "crons": [
+    { "path": "/api/fetch",   "schedule": "0 6 * * *" },
+    { "path": "/api/deliver", "schedule": "0 8 * * *" }
+  ],
+  "functions": {
+    "api/fetch.py":    { "maxDuration": 60 },
+    "api/deliver.py":  { "maxDuration": 60 },
+    "api/telegram.py": { "maxDuration": 10 }
+  }
+}
