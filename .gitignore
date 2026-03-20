@@ -1,3 +1,8 @@
+# Tool/editor directories
 .specstory/
+.history/
+.claude/
+
+# Project docs (non-source)
 AXIOM-INSIGHTS.md
 AXIOM-SPEC.md
