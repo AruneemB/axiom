@@ -6,3 +6,16 @@
 # Project docs (non-source)
 AXIOM-INSIGHTS.md
 AXIOM-SPEC.md
+
+# Python
+__pycache__/
+*.pyc
+
+# Environment
+.env
+
+# Vercel
+.vercel/
+
+# Node
+node_modules/
