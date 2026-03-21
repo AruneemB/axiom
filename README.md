@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="favicon.svg" width="80" alt="Axiom logo">
+</p>
+
 # Axiom
 
 A serverless pipeline that monitors quantitative finance research, synthesizes actionable trading ideas using LLMs, and delivers them daily via Telegram.
