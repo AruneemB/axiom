@@ -17,12 +17,13 @@ This guide walks you through deploying your own instance of Axiom from scratch. 
 
 1. Create a free project at [neon.tech](https://neon.tech)
 2. Copy the connection string from Settings > Connection Details — this becomes your `DATABASE_URL`
-3. Run the three migrations in order (via the Neon SQL Editor or `psql`):
+3. Run the migrations in order (via the Neon SQL Editor or `psql`):
 
 ```bash
 psql $DATABASE_URL -f migrations/001_initial_schema.sql
 psql $DATABASE_URL -f migrations/002_add_pgvector.sql
 psql $DATABASE_URL -f migrations/003_add_topic_weights.sql
+psql $DATABASE_URL -f migrations/004_update_vector_dimensions.sql
 ```
 
 4. Seed the default topic weights:
@@ -148,7 +149,8 @@ Then run the seed script:
 ```bash
 python scripts/seed_corpus.py \
   --papers "2305.xxxxx,2401.xxxxx,2312.xxxxx" \
-  --database-url "$DATABASE_URL"
+  --database-url "$DATABASE_URL" \
+  --openrouter-api-key "$OPENROUTER_API_KEY"
 ```
 
 Replace the IDs with real arXiv papers. Good candidates: foundational papers on momentum, factor models, volatility, or whatever topics match your `ALLOWED_TOPICS`.
