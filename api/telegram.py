@@ -29,6 +29,10 @@ class handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length))
 
+        # Respond 200 immediately so Telegram doesn't retry
+        self.send_response(200)
+        self.end_headers()
+
         conn = get_connection(cfg.database_url)
 
         try:
@@ -38,9 +42,6 @@ class handler(BaseHTTPRequestHandler):
                 handle_message(body["message"], conn, cfg)
         finally:
             conn.close()
-
-        self.send_response(200)
-        self.end_headers()
 
 
 def handle_message(msg: dict, conn, cfg):
