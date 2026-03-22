@@ -2,10 +2,5 @@
   "crons": [
     { "path": "/api/fetch",   "schedule": "0 6 * * *" },
     { "path": "/api/deliver", "schedule": "0 8 * * *" }
-  ],
-  "functions": {
-    "api/fetch.py":    { "maxDuration": 60, "runtime": "@vercel/python" },
-    "api/deliver.py":  { "maxDuration": 60, "runtime": "@vercel/python" },
-    "api/telegram.py": { "maxDuration": 10, "runtime": "@vercel/python" }
-  }
+  ]
 }
