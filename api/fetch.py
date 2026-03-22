@@ -3,8 +3,7 @@ from http.server import BaseHTTPRequestHandler
 
 from lib.config import load_config
 from lib.arxiv import fetch_recent_papers
-# TODO: uncomment when lib/rss.py is implemented (Prompt 13)
-# from lib.rss import fetch_rss_papers
+from lib.rss import fetch_rss_papers
 from lib.filter import RelevanceFilter
 from lib.db import get_connection
 
