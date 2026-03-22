@@ -1,0 +1,15 @@
+A new quantitative finance paper has been published. Extract the key
+details in the JSON format below.
+
+Paper title: {title}
+
+Abstract:
+{abstract}
+
+Respond ONLY with this JSON structure:
+{
+  "methodology": "the core statistical or ML method used (1-2 sentences)",
+  "dataset": "what data is required: asset class, frequency, time period, source",
+  "finding": "the key empirical result, stated precisely in one sentence",
+  "limitation": "the primary stated limitation or caveat"
+}

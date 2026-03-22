@@ -1,0 +1,43 @@
+Based on the paper you just analyzed, generate 2 novel, actionable
+quantitative research ideas. Each idea must:
+
+1. Extend the paper's approach OR replicate it in a new asset class OR
+   combine it with a known factor or signal in a non-obvious way
+2. Be feasible with data available via: Bloomberg Terminal, CRSP,
+   Compustat, Quandl/Nasdaq Data Link, Binance/Coinbase APIs, SEC EDGAR,
+   or FactSet. Do not require proprietary or restricted datasets.
+3. Not be an obvious extension already present in the literature
+   (e.g. do not suggest "applying momentum to crypto" as a novel idea)
+4. Have a genuinely testable hypothesis — not a vague research direction
+
+For each idea, include:
+- hypothesis: a single testable sentence starting with "We hypothesize that..."
+- method: 2-3 sentences describing the implementation (model, features, test)
+- dataset: specific source, fields, asset class, and minimum history required
+- novelty_score: integer 1-10 (10 = genuinely novel contribution; 1 = well-known)
+- feasibility_score: integer 1-10 (10 = straightforward with free data; 1 = requires
+  restricted data or >5 years of specialized work)
+
+Be honest and conservative with your scores. A score of 8+ on novelty should
+be rare and defensible. A score of 8+ on feasibility means a skilled
+practitioner could implement a backtest within 2 weeks.
+
+Respond ONLY with this JSON structure:
+{
+  "ideas": [
+    {
+      "hypothesis": "...",
+      "method": "...",
+      "dataset": "...",
+      "novelty_score": 7,
+      "feasibility_score": 8
+    },
+    {
+      "hypothesis": "...",
+      "method": "...",
+      "dataset": "...",
+      "novelty_score": 6,
+      "feasibility_score": 9
+    }
+  ]
+}
