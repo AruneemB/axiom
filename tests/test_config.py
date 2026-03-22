@@ -25,7 +25,7 @@ def _clean_env(monkeypatch):
             "DEFAULT_MODEL", "DEEPDIVE_MODEL", "DEEPDIVE_DAY",
             "ARXIV_CATEGORIES", "ARXIV_MAX_RESULTS",
             "RELEVANCE_THRESHOLD", "QUALITY_GATE_MIN",
-            "DEDUP_SIMILARITY_MAX", "MAX_IDEAS_PER_DAY",
+            "DEDUP_SIMILARITY_MAX", "EMBEDDING_MODEL", "MAX_IDEAS_PER_DAY",
         ):
             monkeypatch.delenv(key, raising=False)
 
@@ -111,6 +111,11 @@ class TestLoadConfigDefaults:
         cfg = load_config()
         assert cfg.dedup_similarity_max == 0.80
 
+    def test_default_embedding_model(self, monkeypatch):
+        _set_required(monkeypatch)
+        cfg = load_config()
+        assert cfg.embedding_model == "openai/text-embedding-3-small"
+
     def test_default_max_ideas_per_day(self, monkeypatch):
         _set_required(monkeypatch)
         cfg = load_config()
@@ -136,6 +141,12 @@ class TestLoadConfigOverrides:
         monkeypatch.setenv("RELEVANCE_THRESHOLD", "0.80")
         cfg = load_config()
         assert cfg.relevance_threshold == 0.80
+
+    def test_override_embedding_model(self, monkeypatch):
+        _set_required(monkeypatch)
+        monkeypatch.setenv("EMBEDDING_MODEL", "openai/text-embedding-3-large")
+        cfg = load_config()
+        assert cfg.embedding_model == "openai/text-embedding-3-large"
 
     def test_override_max_ideas_per_day(self, monkeypatch):
         _set_required(monkeypatch)

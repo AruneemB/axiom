@@ -48,11 +48,12 @@ class TestRegisterWebhook:
 class TestSeedCorpus:
 
     @patch("scripts.seed_corpus.get_connection")
-    @patch("scripts.seed_corpus.embed_text", return_value=[0.1] * 384)
+    @patch("scripts.seed_corpus.embed_text", return_value=[0.1] * 1536)
     @patch("scripts.seed_corpus.httpx")
     @patch("sys.argv", ["seed_corpus.py",
                          "--papers", "2401.12345,2401.67890",
-                         "--database-url", "postgresql://localhost/test"])
+                         "--database-url", "postgresql://localhost/test",
+                         "--openrouter-api-key", "sk-test"])
     def test_fetches_and_inserts_papers(self, mock_httpx, mock_embed, mock_conn):
         # Build a minimal Atom XML response
         xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -88,7 +89,8 @@ class TestSeedCorpus:
     @patch("scripts.seed_corpus.httpx")
     @patch("sys.argv", ["seed_corpus.py",
                          "--papers", "9999.99999",
-                         "--database-url", "postgresql://localhost/test"])
+                         "--database-url", "postgresql://localhost/test",
+                         "--openrouter-api-key", "sk-test"])
     def test_skips_paper_not_found(self, mock_httpx, mock_embed, mock_conn):
         # XML with no entry
         xml = """<?xml version="1.0" encoding="UTF-8"?>
@@ -110,9 +112,10 @@ class TestSeedCorpus:
 class TestBackfillEmbeddings:
 
     @patch("scripts.backfill_embeddings.get_connection")
-    @patch("scripts.backfill_embeddings.embed_text", return_value=[0.1] * 384)
+    @patch("scripts.backfill_embeddings.embed_text", return_value=[0.1] * 1536)
     @patch("sys.argv", ["backfill_embeddings.py",
-                         "--database-url", "postgresql://localhost/test"])
+                         "--database-url", "postgresql://localhost/test",
+                         "--openrouter-api-key", "sk-test"])
     def test_updates_papers_with_null_embeddings(self, mock_embed, mock_conn):
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
@@ -135,7 +138,8 @@ class TestBackfillEmbeddings:
     @patch("scripts.backfill_embeddings.get_connection")
     @patch("scripts.backfill_embeddings.embed_text")
     @patch("sys.argv", ["backfill_embeddings.py",
-                         "--database-url", "postgresql://localhost/test"])
+                         "--database-url", "postgresql://localhost/test",
+                         "--openrouter-api-key", "sk-test"])
     def test_no_papers_to_backfill(self, mock_embed, mock_conn):
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = []

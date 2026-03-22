@@ -47,6 +47,7 @@ def _make_config(**overrides):
         "relevance_threshold": 0.65,
         "quality_gate_min": 13,
         "dedup_similarity_max": 0.80,
+        "embedding_model": "openai/text-embedding-3-small",
         "max_ideas_per_day": 2,
     }
     defaults.update(overrides)
@@ -151,7 +152,7 @@ class TestRunDeliverModelSelection:
     @patch("api.deliver.send_idea_message")
     @patch("api.deliver.store_idea", return_value=1)
     @patch("api.deliver.is_duplicate", return_value=False)
-    @patch("api.deliver.embed_text", return_value=[0.1] * 384)
+    @patch("api.deliver.embed_text", return_value=[0.1] * 1536)
     @patch("api.deliver.synthesize_idea")
     @patch("api.deliver.get_connection")
     @patch("api.deliver.datetime")
@@ -169,7 +170,7 @@ class TestRunDeliverModelSelection:
     @patch("api.deliver.send_idea_message")
     @patch("api.deliver.store_idea", return_value=1)
     @patch("api.deliver.is_duplicate", return_value=False)
-    @patch("api.deliver.embed_text", return_value=[0.1] * 384)
+    @patch("api.deliver.embed_text", return_value=[0.1] * 1536)
     @patch("api.deliver.synthesize_idea")
     @patch("api.deliver.get_connection")
     @patch("api.deliver.datetime")
@@ -220,7 +221,7 @@ class TestRunDeliverSkipReasons:
 
     @patch("api.deliver.mark_processed")
     @patch("api.deliver.is_duplicate", return_value=True)
-    @patch("api.deliver.embed_text", return_value=[0.1] * 384)
+    @patch("api.deliver.embed_text", return_value=[0.1] * 1536)
     @patch("api.deliver.synthesize_idea")
     @patch("api.deliver.get_connection")
     @patch("api.deliver.datetime")
@@ -246,7 +247,7 @@ class TestRunDeliverSuccess:
     @patch("api.deliver.send_idea_message")
     @patch("api.deliver.store_idea", return_value=42)
     @patch("api.deliver.is_duplicate", return_value=False)
-    @patch("api.deliver.embed_text", return_value=[0.1] * 384)
+    @patch("api.deliver.embed_text", return_value=[0.1] * 1536)
     @patch("api.deliver.synthesize_idea")
     @patch("api.deliver.get_connection")
     @patch("api.deliver.datetime")
@@ -268,7 +269,7 @@ class TestRunDeliverSuccess:
     @patch("api.deliver.send_idea_message")
     @patch("api.deliver.store_idea", return_value=42)
     @patch("api.deliver.is_duplicate", return_value=False)
-    @patch("api.deliver.embed_text", return_value=[0.1] * 384)
+    @patch("api.deliver.embed_text", return_value=[0.1] * 1536)
     @patch("api.deliver.synthesize_idea")
     @patch("api.deliver.get_connection")
     @patch("api.deliver.datetime")
@@ -289,7 +290,7 @@ class TestRunDeliverSuccess:
     @patch("api.deliver.send_idea_message")
     @patch("api.deliver.store_idea", return_value=42)
     @patch("api.deliver.is_duplicate", return_value=False)
-    @patch("api.deliver.embed_text", return_value=[0.1] * 384)
+    @patch("api.deliver.embed_text", return_value=[0.1] * 1536)
     @patch("api.deliver.synthesize_idea")
     @patch("api.deliver.get_connection")
     @patch("api.deliver.datetime")
@@ -348,7 +349,7 @@ class TestIsDuplicate:
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-        assert is_duplicate(mock_conn, [0.1] * 384, 0.80) is True
+        assert is_duplicate(mock_conn, [0.1] * 1536, 0.80) is True
 
     def test_returns_false_when_no_match(self):
         mock_cursor = MagicMock()
@@ -356,7 +357,7 @@ class TestIsDuplicate:
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-        assert is_duplicate(mock_conn, [0.1] * 384, 0.80) is False
+        assert is_duplicate(mock_conn, [0.1] * 1536, 0.80) is False
 
     def test_passes_embedding_and_threshold_to_query(self):
         mock_cursor = MagicMock()
@@ -364,7 +365,7 @@ class TestIsDuplicate:
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-        emb = [0.5] * 384
+        emb = [0.5] * 1536
         is_duplicate(mock_conn, emb, 0.75)
         params = mock_cursor.execute.call_args[0][1]
         assert params == (emb, 0.75)
@@ -383,7 +384,7 @@ class TestStoreIdea:
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
         idea = _make_idea()
-        result = store_idea(mock_conn, "p1", idea, [0.1] * 384)
+        result = store_idea(mock_conn, "p1", idea, [0.1] * 1536)
         assert result == 42
         mock_conn.commit.assert_called_once()
 
@@ -394,7 +395,7 @@ class TestStoreIdea:
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
         idea = _make_idea(novelty=6, feasibility=9)
-        emb = [0.2] * 384
+        emb = [0.2] * 1536
         store_idea(mock_conn, "paper-123", idea, emb)
         params = mock_cursor.execute.call_args[0][1]
         assert params[0] == "paper-123"

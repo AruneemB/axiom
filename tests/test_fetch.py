@@ -50,6 +50,7 @@ def _make_config(**overrides):
         "relevance_threshold": 0.65,
         "quality_gate_min": 13,
         "dedup_similarity_max": 0.80,
+        "embedding_model": "openai/text-embedding-3-small",
         "max_ideas_per_day": 2,
     }
     defaults.update(overrides)
@@ -324,12 +325,18 @@ class TestRunFetchFilterInit:
         cfg = _make_config(
             allowed_topics=["alpha decay", "liquidity"],
             relevance_threshold=0.70,
+            database_url="postgresql://localhost/test",
+            openrouter_api_key="key",
+            embedding_model="openai/text-embedding-3-small",
         )
         run_fetch(cfg)
 
         mock_filter_cls.assert_called_once_with(
             topics=["alpha decay", "liquidity"],
             threshold=0.70,
+            database_url="postgresql://localhost/test",
+            api_key="key",
+            embedding_model="openai/text-embedding-3-small",
         )
 
 

@@ -4,8 +4,7 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 import pytest
 
-import lib.embeddings as embeddings_module
-from lib.embeddings import cosine_similarity
+from lib.embeddings import embed_text, cosine_similarity
 
 
 class TestCosineSimlarity:
@@ -54,70 +53,68 @@ class TestCosineSimlarity:
         assert result == pytest.approx(1.0 / math.sqrt(2))
 
     def test_high_dimensional_identical(self):
-        v = [0.1] * 384
+        v = [0.1] * 1536
         assert cosine_similarity(v, v) == pytest.approx(1.0)
-
-
-class TestGetModel:
-
-    def test_lazy_load_returns_model(self):
-        mock_model = MagicMock()
-        with patch.object(embeddings_module, "_model", None):
-            with patch("lib.embeddings.SentenceTransformer", create=True) as mock_cls:
-                mock_cls.return_value = mock_model
-                # Need to patch the import inside _get_model
-                with patch.dict("sys.modules", {"sentence_transformers": MagicMock(SentenceTransformer=mock_cls)}):
-                    result = embeddings_module._get_model()
-                    assert result is not None
-
-    def test_model_cached_after_first_load(self):
-        sentinel = MagicMock()
-        with patch.object(embeddings_module, "_model", sentinel):
-            result = embeddings_module._get_model()
-            assert result is sentinel
 
 
 class TestEmbedText:
 
-    def _mock_model(self):
-        mock = MagicMock()
-        mock.encode.return_value = np.random.randn(384).astype(np.float32)
-        return mock
-
-    @patch.object(embeddings_module, "_get_model")
-    def test_returns_list_of_floats(self, mock_get_model):
-        mock_get_model.return_value = self._mock_model()
-        result = embeddings_module.embed_text("test text")
+    @patch("lib.embeddings.httpx.post")
+    def test_returns_list_of_floats(self, mock_post):
+        mock_post.return_value = MagicMock(
+            json=lambda: {"data": [{"embedding": [0.1] * 1536}]},
+            raise_for_status=MagicMock(),
+        )
+        result = embed_text("test text", model="openai/text-embedding-3-small", api_key="sk-test")
         assert isinstance(result, list)
         assert all(isinstance(x, float) for x in result)
 
-    @patch.object(embeddings_module, "_get_model")
-    def test_returns_384_dimensions(self, mock_get_model):
-        mock_get_model.return_value = self._mock_model()
-        result = embeddings_module.embed_text("test text")
-        assert len(result) == 384
+    @patch("lib.embeddings.httpx.post")
+    def test_returns_1536_dimensions(self, mock_post):
+        mock_post.return_value = MagicMock(
+            json=lambda: {"data": [{"embedding": [0.1] * 1536}]},
+            raise_for_status=MagicMock(),
+        )
+        result = embed_text("test text", model="openai/text-embedding-3-small", api_key="sk-test")
+        assert len(result) == 1536
 
-    @patch.object(embeddings_module, "_get_model")
-    def test_calls_encode_with_normalize(self, mock_get_model):
-        mock_model = self._mock_model()
-        mock_get_model.return_value = mock_model
-        embeddings_module.embed_text("hello world")
-        mock_model.encode.assert_called_once_with("hello world", normalize_embeddings=True)
+    @patch("lib.embeddings.httpx.post")
+    def test_calls_openrouter_embeddings_endpoint(self, mock_post):
+        mock_post.return_value = MagicMock(
+            json=lambda: {"data": [{"embedding": [0.1] * 1536}]},
+            raise_for_status=MagicMock(),
+        )
+        embed_text("hello world", model="openai/text-embedding-3-small", api_key="sk-test")
+        call_args = mock_post.call_args
+        assert call_args[0][0] == "https://openrouter.ai/api/v1/embeddings"
 
-    @patch.object(embeddings_module, "_get_model")
-    def test_calls_get_model(self, mock_get_model):
-        mock_get_model.return_value = self._mock_model()
-        embeddings_module.embed_text("anything")
-        mock_get_model.assert_called_once()
+    @patch("lib.embeddings.httpx.post")
+    def test_sends_correct_headers(self, mock_post):
+        mock_post.return_value = MagicMock(
+            json=lambda: {"data": [{"embedding": [0.1] * 1536}]},
+            raise_for_status=MagicMock(),
+        )
+        embed_text("hello", model="openai/text-embedding-3-small", api_key="sk-my-key")
+        headers = mock_post.call_args[1]["headers"]
+        assert headers["Authorization"] == "Bearer sk-my-key"
+        assert headers["HTTP-Referer"] == "https://axiom.app"
+        assert headers["X-Title"] == "Axiom"
 
-    @patch.object(embeddings_module, "_get_model")
-    def test_tolist_called_on_result(self, mock_get_model):
-        mock_model = MagicMock()
-        mock_array = MagicMock()
-        mock_array.tolist.return_value = [0.1] * 384
-        mock_model.encode.return_value = mock_array
-        mock_get_model.return_value = mock_model
+    @patch("lib.embeddings.httpx.post")
+    def test_sends_correct_body(self, mock_post):
+        mock_post.return_value = MagicMock(
+            json=lambda: {"data": [{"embedding": [0.1] * 1536}]},
+            raise_for_status=MagicMock(),
+        )
+        embed_text("test input", model="openai/text-embedding-3-small", api_key="sk-test")
+        body = mock_post.call_args[1]["json"]
+        assert body["model"] == "openai/text-embedding-3-small"
+        assert body["input"] == "test input"
 
-        result = embeddings_module.embed_text("test")
-        mock_array.tolist.assert_called_once()
-        assert result == [0.1] * 384
+    @patch("lib.embeddings.httpx.post")
+    def test_raises_on_http_error(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = Exception("401 Unauthorized")
+        mock_post.return_value = mock_response
+        with pytest.raises(Exception, match="401"):
+            embed_text("test", model="m", api_key="bad-key")

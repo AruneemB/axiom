@@ -36,6 +36,14 @@ class TestRelevanceFilterInit:
         rf = RelevanceFilter(topics=["momentum"], threshold=0.65, database_url="postgresql://localhost/test")
         assert rf._database_url == "postgresql://localhost/test"
 
+    def test_api_key_stored(self):
+        rf = RelevanceFilter(topics=["momentum"], threshold=0.65, api_key="sk-test")
+        assert rf._api_key == "sk-test"
+
+    def test_embedding_model_stored(self):
+        rf = RelevanceFilter(topics=["momentum"], threshold=0.65, embedding_model="openai/text-embedding-3-small")
+        assert rf._embedding_model == "openai/text-embedding-3-small"
+
 
 class TestKeywordFilterRejectsIrrelevant:
 
@@ -59,10 +67,12 @@ class TestKeywordFilterPassesRelevant:
     @patch("lib.filter.embed_text")
     @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
     def test_relevant_abstract_returns_hits(self, mock_seeds, mock_embed):
-        mock_embed.return_value = [0.1] * 384
+        mock_embed.return_value = [0.1] * 1536
         rf = RelevanceFilter(
             topics=["momentum", "factor model", "volatility"],
             threshold=0.65,
+            api_key="sk-test",
+            embedding_model="openai/text-embedding-3-small",
         )
         score, hits = rf.score(
             "We propose a novel momentum factor model for equity returns "
@@ -75,10 +85,12 @@ class TestKeywordFilterPassesRelevant:
     @patch("lib.filter.embed_text")
     @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
     def test_single_keyword_hit(self, mock_seeds, mock_embed):
-        mock_embed.return_value = [0.1] * 384
+        mock_embed.return_value = [0.1] * 1536
         rf = RelevanceFilter(
             topics=["momentum", "factor model"],
             threshold=0.65,
+            api_key="sk-test",
+            embedding_model="openai/text-embedding-3-small",
         )
         score, hits = rf.score(
             "This paper examines momentum effects in stock markets."
@@ -92,8 +104,9 @@ class TestKeywordFilterCaseInsensitive:
     @patch("lib.filter.embed_text")
     @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
     def test_uppercase_abstract_matches(self, mock_seeds, mock_embed):
-        mock_embed.return_value = [0.1] * 384
-        rf = RelevanceFilter(topics=["momentum"], threshold=0.65)
+        mock_embed.return_value = [0.1] * 1536
+        rf = RelevanceFilter(topics=["momentum"], threshold=0.65,
+                             api_key="sk-test", embedding_model="m")
         score, hits = rf.score("MOMENTUM strategies in equity markets.")
         assert "momentum" in hits
         assert score > 0
@@ -101,26 +114,21 @@ class TestKeywordFilterCaseInsensitive:
     @patch("lib.filter.embed_text")
     @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
     def test_mixed_case_abstract_matches(self, mock_seeds, mock_embed):
-        mock_embed.return_value = [0.1] * 384
-        rf = RelevanceFilter(topics=["factor model"], threshold=0.65)
+        mock_embed.return_value = [0.1] * 1536
+        rf = RelevanceFilter(topics=["factor model"], threshold=0.65,
+                             api_key="sk-test", embedding_model="m")
         score, hits = rf.score("A new Factor Model for risk analysis.")
         assert "factor model" in hits
 
 
 class TestFallbackScoring:
 
-    @patch("lib.filter.embed_text")
-    @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
-    def test_one_hit_fallback_score(self, mock_seeds, mock_embed):
-        mock_embed.return_value = [0.1] * 384
+    def test_one_hit_fallback_score_no_api_key(self):
         rf = RelevanceFilter(topics=["momentum"], threshold=0.65)
         score, hits = rf.score("This paper uses momentum signals.")
         assert score == pytest.approx(0.55)
 
-    @patch("lib.filter.embed_text")
-    @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
-    def test_two_hits_fallback_score(self, mock_seeds, mock_embed):
-        mock_embed.return_value = [0.1] * 384
+    def test_two_hits_fallback_score_no_api_key(self):
         rf = RelevanceFilter(
             topics=["momentum", "volatility"],
             threshold=0.65,
@@ -128,12 +136,44 @@ class TestFallbackScoring:
         score, hits = rf.score("Momentum and volatility in equity returns.")
         assert score == pytest.approx(0.6)
 
-    @patch("lib.filter.embed_text")
-    @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
-    def test_fallback_capped_at_0_9(self, mock_seeds, mock_embed):
-        mock_embed.return_value = [0.1] * 384
+    def test_fallback_capped_at_0_9_no_api_key(self):
         topics = [f"topic{i}" for i in range(20)]
         rf = RelevanceFilter(topics=topics, threshold=0.65)
+        # Build abstract with all topics
+        abstract = " ".join(topics)
+        score, hits = rf.score(abstract)
+        assert score == pytest.approx(0.9)
+        assert score <= 0.9
+
+    @patch("lib.filter.embed_text")
+    @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
+    def test_one_hit_fallback_with_empty_seeds(self, mock_seeds, mock_embed):
+        mock_embed.return_value = [0.1] * 1536
+        rf = RelevanceFilter(topics=["momentum"], threshold=0.65,
+                             api_key="sk-test", embedding_model="m")
+        score, hits = rf.score("This paper uses momentum signals.")
+        assert score == pytest.approx(0.55)
+
+    @patch("lib.filter.embed_text")
+    @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
+    def test_two_hits_fallback_with_empty_seeds(self, mock_seeds, mock_embed):
+        mock_embed.return_value = [0.1] * 1536
+        rf = RelevanceFilter(
+            topics=["momentum", "volatility"],
+            threshold=0.65,
+            api_key="sk-test",
+            embedding_model="m",
+        )
+        score, hits = rf.score("Momentum and volatility in equity returns.")
+        assert score == pytest.approx(0.6)
+
+    @patch("lib.filter.embed_text")
+    @patch.object(RelevanceFilter, "_get_seed_embeddings", return_value=[])
+    def test_fallback_capped_at_0_9_with_empty_seeds(self, mock_seeds, mock_embed):
+        mock_embed.return_value = [0.1] * 1536
+        topics = [f"topic{i}" for i in range(20)]
+        rf = RelevanceFilter(topics=topics, threshold=0.65,
+                             api_key="sk-test", embedding_model="m")
         # Build abstract with all topics
         abstract = " ".join(topics)
         score, hits = rf.score(abstract)
@@ -147,10 +187,11 @@ class TestEmbeddingSimilarityScoring:
     @patch("lib.filter.embed_text")
     @patch.object(RelevanceFilter, "_get_seed_embeddings")
     def test_returns_max_similarity(self, mock_seeds, mock_embed, mock_cosine):
-        mock_seeds.return_value = [[0.1] * 384, [0.2] * 384, [0.3] * 384]
-        mock_embed.return_value = [0.5] * 384
+        mock_seeds.return_value = [[0.1] * 1536, [0.2] * 1536, [0.3] * 1536]
+        mock_embed.return_value = [0.5] * 1536
         mock_cosine.side_effect = [0.6, 0.85, 0.7]
-        rf = RelevanceFilter(topics=["momentum"], threshold=0.65)
+        rf = RelevanceFilter(topics=["momentum"], threshold=0.65,
+                             api_key="sk-test", embedding_model="m")
         score, hits = rf.score("This paper uses momentum signals.")
         assert score == 0.85
         assert hits == ["momentum"]
@@ -159,23 +200,25 @@ class TestEmbeddingSimilarityScoring:
     @patch("lib.filter.embed_text")
     @patch.object(RelevanceFilter, "_get_seed_embeddings")
     def test_calls_embed_text_with_abstract(self, mock_seeds, mock_embed, mock_cosine):
-        mock_seeds.return_value = [[0.1] * 384]
-        mock_embed.return_value = [0.5] * 384
+        mock_seeds.return_value = [[0.1] * 1536]
+        mock_embed.return_value = [0.5] * 1536
         mock_cosine.return_value = 0.8
-        rf = RelevanceFilter(topics=["momentum"], threshold=0.65)
+        rf = RelevanceFilter(topics=["momentum"], threshold=0.65,
+                             api_key="sk-test", embedding_model="m")
         abstract = "Momentum effects in markets."
         rf.score(abstract)
-        mock_embed.assert_called_once_with(abstract)
+        mock_embed.assert_called_once_with(abstract, model="m", api_key="sk-test")
 
     @patch("lib.filter.cosine_similarity")
     @patch("lib.filter.embed_text")
     @patch.object(RelevanceFilter, "_get_seed_embeddings")
     def test_compares_against_each_seed(self, mock_seeds, mock_embed, mock_cosine):
-        seeds = [[0.1] * 384, [0.2] * 384]
+        seeds = [[0.1] * 1536, [0.2] * 1536]
         mock_seeds.return_value = seeds
-        mock_embed.return_value = [0.5] * 384
+        mock_embed.return_value = [0.5] * 1536
         mock_cosine.return_value = 0.7
-        rf = RelevanceFilter(topics=["momentum"], threshold=0.65)
+        rf = RelevanceFilter(topics=["momentum"], threshold=0.65,
+                             api_key="sk-test", embedding_model="m")
         rf.score("Momentum paper abstract.")
         assert mock_cosine.call_count == 2
 
@@ -191,8 +234,8 @@ class TestGetSeedEmbeddings:
     def test_queries_seed_corpus_table(self, mock_get_conn):
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
-            {"embedding": [0.1] * 384},
-            {"embedding": [0.2] * 384},
+            {"embedding": [0.1] * 1536},
+            {"embedding": [0.2] * 1536},
         ]
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -208,7 +251,7 @@ class TestGetSeedEmbeddings:
     @patch("lib.filter.get_connection")
     def test_caches_seed_embeddings(self, mock_get_conn):
         mock_cursor = MagicMock()
-        mock_cursor.fetchall.return_value = [{"embedding": [0.1] * 384}]
+        mock_cursor.fetchall.return_value = [{"embedding": [0.1] * 1536}]
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -239,9 +282,9 @@ class TestGetSeedEmbeddings:
     def test_filters_none_embeddings(self, mock_get_conn):
         mock_cursor = MagicMock()
         mock_cursor.fetchall.return_value = [
-            {"embedding": [0.1] * 384},
+            {"embedding": [0.1] * 1536},
             {"embedding": None},
-            {"embedding": [0.3] * 384},
+            {"embedding": [0.3] * 1536},
         ]
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
