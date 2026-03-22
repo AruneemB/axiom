@@ -25,6 +25,10 @@ Zero infrastructure. Near-zero cost. High signal.
 5. Delivers high-signal ideas to authorized users on Telegram
 6. Learns from feedback to personalize over time
 
+## Deploy Your Own
+
+See **[INSTRUCTIONS.md](INSTRUCTIONS.md)** for a step-by-step guide to deploying your own instance of Axiom.
+
 ---
 
 *Built to find the signal.*
