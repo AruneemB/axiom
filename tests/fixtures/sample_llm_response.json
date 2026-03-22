@@ -1,0 +1,18 @@
+{
+  "ideas": [
+    {
+      "hypothesis": "We hypothesize that applying volatility-managed scaling to the cross-sectional momentum factor in cryptocurrency markets yields a higher risk-adjusted return than unscaled momentum, due to the higher and more time-varying volatility regime in digital assets.",
+      "method": "Construct a daily UMD-equivalent factor across the top 50 cryptocurrencies by market cap using Binance spot data. Apply the same inverse-realized-variance scaling from the paper using a 21-day rolling window. Compare Sharpe ratios, max drawdowns, and tail risk metrics against an unscaled crypto momentum portfolio over 2018-2024.",
+      "dataset": "Binance spot trading data for top 50 cryptocurrencies, daily OHLCV, minimum 5 years of history (2018-present). Supplement with CoinGecko API for market cap rankings.",
+      "novelty_score": 6,
+      "feasibility_score": 9
+    },
+    {
+      "hypothesis": "We hypothesize that incorporating intraday volatility measures (realized kernels from 5-minute returns) into the volatility-management framework provides superior crash protection compared to daily realized variance, particularly during flash crash episodes.",
+      "method": "Using TAQ (NYSE Trade and Quote) data, compute realized kernel estimates at the stock level for all momentum decile constituents. Scale the UMD factor by inverse realized kernel rather than inverse daily RV. Evaluate whether the improvement in drawdown reduction justifies the higher data frequency requirement using a Diebold-Mariano test on conditional Sharpe ratios.",
+      "dataset": "NYSE TAQ intraday data, 5-minute frequency, US equities, 2003-2023. Cross-reference with CRSP for daily factor portfolio constituents. Minimum 20 years for robust crash-episode analysis.",
+      "novelty_score": 7,
+      "feasibility_score": 7
+    }
+  ]
+}

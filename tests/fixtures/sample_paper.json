@@ -1,0 +1,9 @@
+{
+  "id": "2401.12345",
+  "title": "Cross-Sectional Momentum and Volatility-Managed Portfolios in Equity Factor Models",
+  "abstract": "We propose a volatility-managed momentum strategy that dynamically scales factor exposure based on realized variance estimates. Using daily CRSP equity returns from 1963 to 2023, we demonstrate that inverse-volatility weighting of the standard cross-sectional momentum factor (UMD) reduces maximum drawdown by 40% while preserving 85% of the unconditional Sharpe ratio. The approach is robust to transaction cost assumptions up to 50 basis points per side and survives multiple testing corrections. Our findings suggest that momentum crashes are predominantly a volatility phenomenon rather than a mean-reversion signal, with implications for factor timing and portfolio construction in systematic strategies.",
+  "authors": ["Alice Chen", "Bob Martinez", "Carol Zhang"],
+  "categories": ["q-fin.PM", "q-fin.ST", "stat.ML"],
+  "url": "https://arxiv.org/abs/2401.12345",
+  "published_at": "2024-01-15T12:00:00+00:00"
+}
