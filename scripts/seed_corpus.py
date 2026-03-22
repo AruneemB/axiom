@@ -14,6 +14,9 @@ def main():
     parser = argparse.ArgumentParser(description="Seed the relevance corpus")
     parser.add_argument("--papers", required=True, help="Comma-separated arXiv IDs")
     parser.add_argument("--database-url", required=True, help="Neon connection string")
+    parser.add_argument("--openrouter-api-key", required=True, help="OpenRouter API key")
+    parser.add_argument("--embedding-model", default="openai/text-embedding-3-small",
+                        help="Embedding model (default: openai/text-embedding-3-small)")
     args = parser.parse_args()
 
     paper_ids = [p.strip() for p in args.papers.split(",")]
@@ -33,7 +36,7 @@ def main():
         title = entry.find("atom:title", ns).text.strip().replace("\n", " ")
         abstract = entry.find("atom:summary", ns).text.strip().replace("\n", " ")
 
-        embedding = embed_text(abstract)
+        embedding = embed_text(abstract, model=args.embedding_model, api_key=args.openrouter_api_key)
 
         with conn.cursor() as cur:
             cur.execute(
