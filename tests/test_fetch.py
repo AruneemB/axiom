@@ -7,9 +7,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-# Mock psycopg2 before importing api.fetch
+# Mock external dependencies before importing api.fetch
 sys.modules.setdefault("psycopg2", MagicMock())
 sys.modules.setdefault("psycopg2.extras", MagicMock())
+sys.modules.setdefault("feedparser", MagicMock())
 
 from api.fetch import handler, run_fetch  # noqa: E402
 
