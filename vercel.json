@@ -4,6 +4,11 @@
     { "src": "api/deliver.py",  "use": "@vercel/python" },
     { "src": "api/telegram.py", "use": "@vercel/python" }
   ],
+  "routes": [
+    { "src": "/api/fetch",    "dest": "/api/fetch.py" },
+    { "src": "/api/deliver",  "dest": "/api/deliver.py" },
+    { "src": "/api/telegram", "dest": "/api/telegram.py" }
+  ],
   "crons": [
     { "path": "/api/fetch",   "schedule": "0 6 * * *" },
     { "path": "/api/deliver", "schedule": "0 8 * * *" }
