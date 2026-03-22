@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Axiom</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #07080a;
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      overflow: hidden;
+    }
+
+    /* subtle radial glow behind the card */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse 600px 400px at 50% 45%, rgba(56, 189, 248, 0.06), transparent);
+      pointer-events: none;
+    }
+
+    .card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 3rem 4rem;
+      border: 1px solid rgba(56, 189, 248, 0.08);
+      border-radius: 1.25rem;
+      background: linear-gradient(160deg, rgba(15, 23, 42, 0.6), rgba(7, 8, 10, 0.8));
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+
+    .logo {
+      width: 56px;
+      height: 56px;
+      filter: drop-shadow(0 0 24px rgba(56, 189, 248, 0.25));
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      font-style: italic;
+      font-size: 0.95rem;
+      color: #94a3b8;
+      letter-spacing: 0.02em;
+    }
+
+    .divider {
+      width: 48px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.3), transparent);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #64748b;
+      transition: color 0.4s ease;
+    }
+
+    .dot {
+      position: relative;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #64748b;
+      transition: background 0.4s ease;
+    }
+
+    /* pulse ring */
+    .dot::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 1.5px solid transparent;
+      transition: border-color 0.4s ease;
+    }
+
+    /* active state */
+    .status.active { color: #4ade80; }
+    .status.active .dot { background: #4ade80; box-shadow: 0 0 8px rgba(74, 222, 128, 0.5); }
+    .status.active .dot::after { border-color: rgba(74, 222, 128, 0.3); animation: pulse 2s ease-out infinite; }
+
+    /* error state */
+    .status.error { color: #f87171; }
+    .status.error .dot { background: #f87171; box-shadow: 0 0 8px rgba(248, 113, 113, 0.4); }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+
+    .stats {
+      display: flex;
+      gap: 2rem;
+      margin-top: 0.25rem;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+
+    .stats.visible { opacity: 1; }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.2rem;
+    }
+
+    .stat-value {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #475569;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img class="logo" src="/favicon.svg" alt="Axiom">
+    <h1>Axiom</h1>
+    <p class="tagline">Built to find the signal.</p>
+    <div class="divider"></div>
+    <div class="status" id="status">
+      <span class="dot"></span>
+      <span id="status-text">Checking&hellip;</span>
+    </div>
+    <div class="stats" id="stats">
+      <div class="stat">
+        <span class="stat-value" id="papers">-</span>
+        <span class="stat-label">Papers</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" id="ideas">-</span>
+        <span class="stat-label">Ideas</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (async function() {
+      const el = document.getElementById('status');
+      const text = document.getElementById('status-text');
+      const stats = document.getElementById('stats');
+      try {
+        const r = await fetch('/api/status');
+        const d = await r.json();
+        if (d.status === 'active') {
+          el.className = 'status active';
+          text.textContent = 'Active';
+          document.getElementById('papers').textContent = d.total_papers.toLocaleString();
+          document.getElementById('ideas').textContent = d.total_ideas.toLocaleString();
+          stats.classList.add('visible');
+        } else {
+          throw new Error();
+        }
+      } catch {
+        el.className = 'status error';
+        text.textContent = 'Unreachable';
+      }
+    })();
+  </script>
+</body>
+</html>
