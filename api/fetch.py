@@ -55,6 +55,9 @@ def run_fetch(cfg) -> dict:
     relevance_filter = RelevanceFilter(
         topics=cfg.allowed_topics,
         threshold=cfg.relevance_threshold,
+        database_url=cfg.database_url,
+        api_key=cfg.openrouter_api_key,
+        embedding_model=cfg.embedding_model,
     )
 
     stored, skipped = 0, 0

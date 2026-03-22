@@ -20,6 +20,7 @@ class Config:
     relevance_threshold: float
     quality_gate_min: int
     dedup_similarity_max: float
+    embedding_model: str
     max_ideas_per_day: int
 
 
@@ -47,5 +48,6 @@ def load_config() -> Config:
         relevance_threshold=float(os.getenv("RELEVANCE_THRESHOLD", "0.65")),
         quality_gate_min=int(os.getenv("QUALITY_GATE_MIN", "13")),
         dedup_similarity_max=float(os.getenv("DEDUP_SIMILARITY_MAX", "0.80")),
+        embedding_model=os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small"),
         max_ideas_per_day=int(os.getenv("MAX_IDEAS_PER_DAY", "2")),
     )

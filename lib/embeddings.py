@@ -1,30 +1,25 @@
+import httpx
 import numpy as np
 
-_model = None
-_model_attempted = False
+OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 
-def _get_model():
-    global _model, _model_attempted
-    if _model is not None:
-        return _model
-    if _model_attempted:
-        return None
-    _model_attempted = True
-    try:
-        from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-    except ImportError:
-        _model = None
-    return _model
-
-
-def embed_text(text: str) -> list[float] | None:
-    model = _get_model()
-    if model is None:
-        return None
-    embedding = model.encode(text, normalize_embeddings=True)
-    return embedding.tolist()
+def embed_text(text: str, model: str, api_key: str) -> list[float]:
+    response = httpx.post(
+        f"{OPENROUTER_BASE}/embeddings",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "HTTP-Referer": "https://axiom.app",
+            "X-Title": "Axiom",
+        },
+        json={
+            "model": model,
+            "input": text,
+        },
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()["data"][0]["embedding"]
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:

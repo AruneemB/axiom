@@ -94,8 +94,12 @@ def run_deliver(cfg) -> dict:
             continue
 
         # Dedup check against previously sent ideas
-        idea_embedding = embed_text(idea["hypothesis"] + " " + idea["method"])
-        if idea_embedding is not None and is_duplicate(conn, idea_embedding, cfg.dedup_similarity_max):
+        idea_embedding = embed_text(
+            idea["hypothesis"] + " " + idea["method"],
+            model=cfg.embedding_model,
+            api_key=cfg.openrouter_api_key,
+        )
+        if is_duplicate(conn, idea_embedding, cfg.dedup_similarity_max):
             mark_processed(conn, paper_id, skip_reason="duplicate_idea")
             continue
 
@@ -148,28 +152,17 @@ def is_duplicate(conn, embedding: list[float], threshold: float) -> bool:
         return cur.fetchone() is not None
 
 
-def store_idea(conn, paper_id: str, idea: dict, embedding: list[float] | None) -> int:
+def store_idea(conn, paper_id: str, idea: dict, embedding: list[float]) -> int:
     with conn.cursor() as cur:
-        if embedding is not None:
-            cur.execute(
-                """INSERT INTO ideas
-                   (paper_id, hypothesis, method, dataset,
-                    novelty_score, feasibility_score, embedding, sent_at)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s::vector,NOW())
-                   RETURNING id""",
-                (paper_id, idea["hypothesis"], idea["method"], idea["dataset"],
-                 idea["novelty_score"], idea["feasibility_score"], embedding),
-            )
-        else:
-            cur.execute(
-                """INSERT INTO ideas
-                   (paper_id, hypothesis, method, dataset,
-                    novelty_score, feasibility_score, sent_at)
-                   VALUES (%s,%s,%s,%s,%s,%s,NOW())
-                   RETURNING id""",
-                (paper_id, idea["hypothesis"], idea["method"], idea["dataset"],
-                 idea["novelty_score"], idea["feasibility_score"]),
-            )
+        cur.execute(
+            """INSERT INTO ideas
+               (paper_id, hypothesis, method, dataset,
+                novelty_score, feasibility_score, embedding, sent_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s::vector,NOW())
+               RETURNING id""",
+            (paper_id, idea["hypothesis"], idea["method"], idea["dataset"],
+             idea["novelty_score"], idea["feasibility_score"], embedding),
+        )
         idea_id = cur.fetchone()["id"]
         conn.commit()
     return idea_id

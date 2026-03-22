@@ -4,11 +4,14 @@ from lib.db import get_connection
 
 class RelevanceFilter:
 
-    def __init__(self, topics: list[str], threshold: float, database_url: str = None):
+    def __init__(self, topics: list[str], threshold: float, database_url: str = None,
+                 api_key: str = None, embedding_model: str = None):
         self.topics = [t.lower().strip() for t in topics]
         self.threshold = threshold
         self._seed_embeddings = None
         self._database_url = database_url
+        self._api_key = api_key
+        self._embedding_model = embedding_model
 
     def score(self, abstract: str) -> tuple[float, list[str]]:
         abstract_lower = abstract.lower()
@@ -19,10 +22,11 @@ class RelevanceFilter:
             return 0.0, []
 
         # Stage 2: embedding similarity vs seed corpus
-        embedding = embed_text(abstract)
-        if embedding is None:
-            # sentence-transformers not available — keyword-only scoring
+        if not self._api_key or not self._embedding_model:
+            # No API key configured — keyword-only scoring
             return min(0.5 + len(keyword_hits) * 0.05, 0.9), keyword_hits
+
+        embedding = embed_text(abstract, model=self._embedding_model, api_key=self._api_key)
 
         seed_embeddings = self._get_seed_embeddings()
 
