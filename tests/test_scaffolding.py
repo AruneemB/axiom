@@ -28,13 +28,13 @@ class TestVercelConfig:
         assert schedules["/api/fetch"] == "0 6 * * *"
         assert schedules["/api/deliver"] == "0 8 * * *"
 
-    def test_has_three_function_configs(self):
+    def test_has_three_build_configs(self):
         cfg = _load_vercel_json()
-        assert len(cfg["functions"]) == 3
+        assert len(cfg["builds"]) == 3
 
-    def test_function_max_durations(self):
+    def test_builds_use_python_runtime(self):
         cfg = _load_vercel_json()
-        fns = cfg["functions"]
-        assert fns["api/fetch.py"]["maxDuration"] == 60
-        assert fns["api/deliver.py"]["maxDuration"] == 60
-        assert fns["api/telegram.py"]["maxDuration"] == 10
+        sources = {b["src"] for b in cfg["builds"]}
+        assert sources == {"api/fetch.py", "api/deliver.py", "api/telegram.py"}
+        for b in cfg["builds"]:
+            assert b["use"] == "@vercel/python"

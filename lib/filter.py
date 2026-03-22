@@ -20,6 +20,10 @@ class RelevanceFilter:
 
         # Stage 2: embedding similarity vs seed corpus
         embedding = embed_text(abstract)
+        if embedding is None:
+            # sentence-transformers not available — keyword-only scoring
+            return min(0.5 + len(keyword_hits) * 0.05, 0.9), keyword_hits
+
         seed_embeddings = self._get_seed_embeddings()
 
         if not seed_embeddings:
