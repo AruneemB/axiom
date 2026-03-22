@@ -1,12 +1,17 @@
 import json
 import hmac
+import random
 from http.server import BaseHTTPRequestHandler
 
 from lib.config import load_config
 from lib.db import get_connection
-from lib.telegram_client import send_message
+from lib.telegram_client import send_message, send_idea_message
+from lib.openrouter import synthesize_idea
+from lib.embeddings import embed_text
+from lib.arxiv import fetch_recent_papers
+from lib.filter import RelevanceFilter
 
-COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback"}
+COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback", "/spark"}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -95,6 +100,8 @@ def handle_message(msg: dict, conn, cfg):
         handle_resume(user_id, chat_id, conn, cfg)
     elif text == "/feedback":
         handle_feedback_summary(user_id, chat_id, conn, cfg)
+    elif text == "/spark":
+        handle_spark(user_id, chat_id, conn, cfg)
 
 
 def handle_callback(cb: dict, conn, cfg):
@@ -222,3 +229,146 @@ def handle_feedback_summary(user_id: int, chat_id: int, conn, cfg):
         cfg.telegram_bot_token,
         parse_mode="MarkdownV2",
     )
+
+
+def handle_spark(user_id: int, chat_id: int, conn, cfg):
+    # Rate limit: 1 spark per 10 minutes per user
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT 1 FROM ideas
+               WHERE on_demand_by = %s AND sent_at > NOW() - INTERVAL '10 minutes'
+               LIMIT 1""",
+            (user_id,),
+        )
+        if cur.fetchone():
+            send_message(chat_id, "Please wait a few minutes before sparking again.", cfg.telegram_bot_token)
+            return
+
+    send_message(chat_id, "Searching for a paper...", cfg.telegram_bot_token)
+
+    paper = _find_paper_for_spark(conn, cfg)
+    if not paper:
+        send_message(chat_id, "No papers available right now. Try again later.", cfg.telegram_bot_token)
+        return
+
+    idea = synthesize_idea(
+        title=paper["title"],
+        abstract=paper["abstract"],
+        model=cfg.default_model,
+        api_key=cfg.openrouter_api_key,
+    )
+
+    if idea is None:
+        send_message(chat_id, "Could not generate an idea. Try again later.", cfg.telegram_bot_token)
+        return
+
+    # Softened quality gate: 10 vs normal 13
+    if idea["novelty_score"] + idea["feasibility_score"] < 10:
+        send_message(chat_id, "The idea didn't pass the quality gate. Try again later.", cfg.telegram_bot_token)
+        return
+
+    idea_embedding = embed_text(
+        idea["hypothesis"] + " " + idea["method"],
+        model=cfg.embedding_model,
+        api_key=cfg.openrouter_api_key,
+    )
+
+    idea_id = _store_spark_idea(conn, paper["id"], idea, idea_embedding, user_id)
+
+    send_idea_message(
+        chat_id=chat_id,
+        idea_id=idea_id,
+        title=paper["title"],
+        url=paper["url"],
+        idea=idea,
+        bot_token=cfg.telegram_bot_token,
+    )
+
+
+def _find_paper_for_spark(conn, cfg) -> dict | None:
+    # Tier 1: Unprocessed papers in DB
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT id, title, abstract, url
+               FROM papers
+               WHERE NOT processed AND NOT skipped
+               ORDER BY relevance_score DESC
+               LIMIT 1"""
+        )
+        paper = cur.fetchone()
+    if paper:
+        return paper
+
+    # Tier 2: Expanded arXiv fetch (7-day window)
+    arxiv_papers = fetch_recent_papers(
+        categories=cfg.arxiv_categories,
+        max_results=cfg.arxiv_max_results,
+        hours=168,
+    )
+    if arxiv_papers:
+        relevance_filter = RelevanceFilter(
+            topics=cfg.allowed_topics,
+            threshold=cfg.relevance_threshold,
+            database_url=cfg.database_url,
+            api_key=cfg.openrouter_api_key,
+            embedding_model=cfg.embedding_model,
+        )
+        scored = []
+        for p in arxiv_papers:
+            score, keyword_hits = relevance_filter.score(p.abstract)
+            if score >= cfg.relevance_threshold:
+                scored.append((score, keyword_hits, p))
+        if scored:
+            scored.sort(key=lambda x: x[0], reverse=True)
+            best_score, best_hits, best_paper = scored[0]
+            # Store in DB if not already present
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM papers WHERE id = %s", (best_paper.id,))
+                if not cur.fetchone():
+                    cur.execute(
+                        """INSERT INTO papers (id, title, abstract, authors, categories,
+                           url, published_at, relevance_score, keyword_hits)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        (best_paper.id, best_paper.title, best_paper.abstract,
+                         best_paper.authors, best_paper.categories, best_paper.url,
+                         best_paper.published_at, best_score, best_hits),
+                    )
+                    conn.commit()
+            return {
+                "id": best_paper.id,
+                "title": best_paper.title,
+                "abstract": best_paper.abstract,
+                "url": best_paper.url,
+            }
+
+    # Tier 3: Random high-scoring archived paper
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT id, title, abstract, url
+               FROM papers
+               WHERE NOT skipped
+               ORDER BY relevance_score DESC
+               LIMIT 10"""
+        )
+        top_papers = cur.fetchall()
+    if top_papers:
+        return random.choice(top_papers)
+
+    # Tier 4: Nothing found
+    return None
+
+
+def _store_spark_idea(conn, paper_id: str, idea: dict, embedding: list[float], user_id: int) -> int:
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO ideas
+               (paper_id, hypothesis, method, dataset,
+                novelty_score, feasibility_score, embedding, sent_at, on_demand_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s::vector,NOW(),%s)
+               RETURNING id""",
+            (paper_id, idea["hypothesis"], idea["method"], idea["dataset"],
+             idea["novelty_score"], idea["feasibility_score"], embedding, user_id),
+        )
+        idea_id = cur.fetchone()["id"]
+        conn.commit()
+    return idea_id

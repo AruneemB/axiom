@@ -326,3 +326,31 @@ class TestFetchRecentPapersApiCall:
 
         with pytest.raises(httpx.HTTPStatusError):
             fetch_recent_papers(["q-fin.ST"])
+
+
+class TestFetchRecentPapersHoursParameter:
+
+    @patch("lib.arxiv.httpx.get")
+    def test_hours_parameter_widens_time_window(self, mock_get):
+        """A paper 48h old is excluded with default hours=36 but included with hours=168."""
+        dt_48h_ago = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        entry = _make_entry_xml(published=dt_48h_ago)
+        mock_get.return_value = _mock_response(_make_atom_xml(entry))
+
+        # Default (36h) should filter it out
+        papers_default = fetch_recent_papers(["q-fin.ST"])
+        assert len(papers_default) == 0
+
+        # With hours=168 should include it
+        papers_wide = fetch_recent_papers(["q-fin.ST"], hours=168)
+        assert len(papers_wide) == 1
+
+    @patch("lib.arxiv.httpx.get")
+    def test_hours_parameter_still_filters_beyond_window(self, mock_get):
+        """A paper older than the specified hours window is still filtered out."""
+        dt_200h_ago = (datetime.now(timezone.utc) - timedelta(hours=200)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        entry = _make_entry_xml(published=dt_200h_ago)
+        mock_get.return_value = _mock_response(_make_atom_xml(entry))
+
+        papers = fetch_recent_papers(["q-fin.ST"], hours=168)
+        assert len(papers) == 0

@@ -17,7 +17,7 @@ class ArxivPaper:
     published_at: datetime
 
 
-def fetch_recent_papers(categories: list[str], max_results: int = 50) -> list[ArxivPaper]:
+def fetch_recent_papers(categories: list[str], max_results: int = 50, hours: int = 36) -> list[ArxivPaper]:
     query = " OR ".join(f"cat:{c}" for c in categories)
 
     params = {
@@ -42,7 +42,7 @@ def fetch_recent_papers(categories: list[str], max_results: int = 50) -> list[Ar
         published_str = entry.find("atom:published", ns).text.strip()
         published_at = datetime.fromisoformat(published_str.replace("Z", "+00:00"))
 
-        if published_at < datetime.now(timezone.utc) - timedelta(hours=36):
+        if published_at < datetime.now(timezone.utc) - timedelta(hours=hours):
             continue
 
         title = entry.find("atom:title", ns).text.strip().replace("\n", " ")
