@@ -3,7 +3,12 @@ import httpx
 TELEGRAM_BASE = "https://api.telegram.org"
 
 
+def _sanitize(text: str) -> str:
+    return text.encode("utf-8", errors="surrogatepass").decode("utf-8", errors="replace")
+
+
 def send_message(chat_id: int, text: str, bot_token: str, parse_mode: str = None):
+    text = _sanitize(text)
     payload = {"chat_id": chat_id, "text": text}
     if parse_mode:
         payload["parse_mode"] = parse_mode
@@ -49,6 +54,8 @@ def send_idea_message(
             {"text": "\ud83d\udcc4 Paper", "url": url},
         ]]
     }
+
+    text = _sanitize(text)
 
     httpx.post(
         f"{TELEGRAM_BASE}/bot{bot_token}/sendMessage",

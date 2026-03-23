@@ -4,6 +4,7 @@ import pytest
 
 from lib.telegram_client import (
     TELEGRAM_BASE,
+    _sanitize,
     send_message,
     send_idea_message,
     register_webhook,
@@ -168,6 +169,27 @@ class TestEscMarkdownV2:
         send_idea_message(123, 42, "Title", "https://arxiv.org/abs/123", idea, "tok")
         text = mock_post.call_args[1]["json"]["text"]
         assert "plain text no special chars" in text
+
+
+class TestSanitize:
+
+    def test_strips_lone_surrogates(self):
+        text = "hello \ud800 world"
+        result = _sanitize(text)
+        assert "\ud800" not in result
+        assert "hello" in result
+        assert "world" in result
+
+    def test_leaves_normal_text_unchanged(self):
+        text = "normal text with unicode: \u00e9\u00e0\u00fc"
+        assert _sanitize(text) == text
+
+    @patch("lib.telegram_client.httpx.post")
+    def test_send_message_handles_surrogates(self, mock_post):
+        mock_post.return_value = MagicMock(raise_for_status=MagicMock())
+        send_message(123, "text with \ud800 surrogate", "tok123")
+        payload = mock_post.call_args[1]["json"]
+        assert "\ud800" not in payload["text"]
 
 
 class TestRegisterWebhook:
