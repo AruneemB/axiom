@@ -12,7 +12,8 @@ sys.modules.setdefault("psycopg2.extras", MagicMock())
 from api.telegram import (  # noqa: E402
     handler, handle_message, handle_callback,
     handle_status, handle_topics, handle_pause,
-    handle_resume, handle_feedback_summary, handle_spark,
+    handle_resume, handle_feedback_summary,
+    handle_spark,
 )
 
 
@@ -411,50 +412,10 @@ class TestHandleSpark:
         mock_send.assert_called_once()
         assert "wait" in mock_send.call_args[0][1].lower()
 
-    @patch("api.telegram.send_idea_message")
-    @patch("api.telegram._store_spark_idea")
-    @patch("api.telegram.embed_text")
-    @patch("api.telegram.synthesize_idea")
-    @patch("api.telegram._find_paper_for_spark")
+    @patch("api.telegram.httpx.post")
     @patch("api.telegram.send_message")
-    def test_tier1_hit_generates_and_sends_idea(self, mock_send, mock_find, mock_synth,
-                                                 mock_embed, mock_store, mock_send_idea):
-        """Unprocessed paper found → idea generated and sent."""
-        mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = None  # no recent spark (rate limit passes)
-        mock_conn = MagicMock()
-        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
-        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-        cfg = _make_config()
-
-        mock_find.return_value = {
-            "id": "2305_12345",
-            "title": "Test Paper",
-            "abstract": "Test abstract",
-            "url": "https://arxiv.org/abs/2305.12345",
-        }
-        mock_synth.return_value = {
-            "hypothesis": "H1",
-            "method": "M1",
-            "dataset": "D1",
-            "novelty_score": 7,
-            "feasibility_score": 6,
-        }
-        mock_embed.return_value = [0.1] * 256
-        mock_store.return_value = 42
-
-        handle_spark(123, 123, mock_conn, cfg)
-
-        # Should send acknowledgment then idea
-        assert mock_send.call_count == 1  # "Searching for a paper..."
-        assert "Searching" in mock_send.call_args[0][1]
-        mock_store.assert_called_once()
-        mock_send_idea.assert_called_once()
-
-    @patch("api.telegram._find_paper_for_spark")
-    @patch("api.telegram.send_message")
-    def test_no_papers_available(self, mock_send, mock_find):
-        """All tiers miss → 'no papers available' message."""
+    def test_passes_rate_limit_sends_ack_and_fires_spark(self, mock_send, mock_post):
+        """No recent spark → sends acknowledgment and fires /api/spark."""
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = None  # rate limit passes
         mock_conn = MagicMock()
@@ -462,18 +423,24 @@ class TestHandleSpark:
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
         cfg = _make_config()
 
-        mock_find.return_value = None
+        handle_spark(123, 456, mock_conn, cfg)
 
-        handle_spark(123, 123, mock_conn, cfg)
+        # Should send "Searching..." acknowledgment
+        mock_send.assert_called_once()
+        assert "Searching" in mock_send.call_args[0][1]
 
-        assert mock_send.call_count == 2
-        assert "No papers available" in mock_send.call_args_list[1][0][1]
+        # Should fire HTTP request to /api/spark
+        mock_post.assert_called_once()
+        call_kwargs = mock_post.call_args
+        assert "/api/spark" in call_kwargs[0][0]
+        body = call_kwargs[1]["json"]
+        assert body["user_id"] == 123
+        assert body["chat_id"] == 456
 
-    @patch("api.telegram._find_paper_for_spark")
-    @patch("api.telegram.synthesize_idea")
+    @patch("api.telegram.httpx.post", side_effect=Exception("connection error"))
     @patch("api.telegram.send_message")
-    def test_llm_failure_sends_error(self, mock_send, mock_synth, mock_find):
-        """synthesize_idea returns None → error message."""
+    def test_spark_tolerates_http_error(self, mock_send, mock_post):
+        """If the HTTP call to /api/spark fails, handle_spark doesn't crash."""
         mock_cursor = MagicMock()
         mock_cursor.fetchone.return_value = None
         mock_conn = MagicMock()
@@ -481,46 +448,5 @@ class TestHandleSpark:
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
         cfg = _make_config()
 
-        mock_find.return_value = {
-            "id": "2305_12345",
-            "title": "Test Paper",
-            "abstract": "Test abstract",
-            "url": "https://arxiv.org/abs/2305.12345",
-        }
-        mock_synth.return_value = None
-
+        # Should not raise
         handle_spark(123, 123, mock_conn, cfg)
-
-        assert mock_send.call_count == 2
-        assert "Could not generate" in mock_send.call_args_list[1][0][1]
-
-    @patch("api.telegram._find_paper_for_spark")
-    @patch("api.telegram.synthesize_idea")
-    @patch("api.telegram.send_message")
-    def test_below_quality_gate_sends_error(self, mock_send, mock_synth, mock_find):
-        """Scores too low → error message."""
-        mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = None
-        mock_conn = MagicMock()
-        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
-        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-        cfg = _make_config()
-
-        mock_find.return_value = {
-            "id": "2305_12345",
-            "title": "Test Paper",
-            "abstract": "Test abstract",
-            "url": "https://arxiv.org/abs/2305.12345",
-        }
-        mock_synth.return_value = {
-            "hypothesis": "H1",
-            "method": "M1",
-            "dataset": "D1",
-            "novelty_score": 3,
-            "feasibility_score": 3,  # total 6 < 10
-        }
-
-        handle_spark(123, 123, mock_conn, cfg)
-
-        assert mock_send.call_count == 2
-        assert "quality gate" in mock_send.call_args_list[1][0][1].lower()

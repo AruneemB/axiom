@@ -1,12 +1,14 @@
 {
   "functions": {
     "api/telegram.py": { "maxDuration": 60 },
-    "api/deliver.py":  { "maxDuration": 60 }
+    "api/deliver.py":  { "maxDuration": 60 },
+    "api/spark.py":    { "maxDuration": 60 }
   },
   "builds": [
     { "src": "api/fetch.py",    "use": "@vercel/python" },
     { "src": "api/deliver.py",  "use": "@vercel/python" },
     { "src": "api/telegram.py", "use": "@vercel/python" },
+    { "src": "api/spark.py",    "use": "@vercel/python" },
     { "src": "api/status.py",   "use": "@vercel/python" },
     { "src": "public/**",       "use": "@vercel/static" },
     { "src": "favicon.svg",     "use": "@vercel/static" }
@@ -15,6 +17,7 @@
     { "src": "/api/fetch",    "dest": "/api/fetch.py" },
     { "src": "/api/deliver",  "dest": "/api/deliver.py" },
     { "src": "/api/telegram", "dest": "/api/telegram.py" },
+    { "src": "/api/spark",    "dest": "/api/spark.py" },
     { "src": "/api/status",   "dest": "/api/status.py" },
     { "src": "/favicon.svg",  "dest": "/favicon.svg" },
     { "src": "/(.*)",         "dest": "/public/$1" }
