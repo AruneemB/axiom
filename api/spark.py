@@ -107,12 +107,11 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
         hours=168,
     )
     if arxiv_papers:
+        # Keyword-only scoring (no embedding API) to avoid dimension mismatches
+        # with seed corpus and to keep Tier 2 fast
         relevance_filter = RelevanceFilter(
             topics=cfg.allowed_topics,
             threshold=cfg.relevance_threshold,
-            database_url=cfg.database_url,
-            api_key=cfg.openrouter_api_key,
-            embedding_model=cfg.embedding_model,
         )
         scored = []
         for p in arxiv_papers:
