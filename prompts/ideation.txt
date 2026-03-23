@@ -1,16 +1,28 @@
-Based on the paper you just analyzed, generate 2 novel, actionable
-quantitative research ideas. Each idea must:
+The paper above is your STARTING POINT, not your destination. Your job is
+to generate 2 experimental research ideas that USE the paper's insight as
+a building block inside a larger, original investigation. Think of the
+paper as one ingredient — now design a dish the authors never imagined.
 
-1. Extend the paper's approach OR replicate it in a new asset class OR
-   combine it with a known factor or signal in a non-obvious way
+Each idea must satisfy ALL of the following:
+
+1. BUILD ON TOP of the paper — combine its core technique or finding with
+   a method, signal, or domain it never touched. Simply extending the same
+   approach to a neighbouring asset class is NOT enough.
+   Good: "Combine the paper's volatility estimator with order-flow
+   imbalance to create a new intraday regime detector."
+   Bad: "Apply the paper's method to European equities instead of US."
 2. Be feasible with data available via: Bloomberg Terminal, CRSP,
    Compustat, Quandl/Nasdaq Data Link, Binance/Coinbase APIs, SEC EDGAR,
    or FactSet. Do not require proprietary or restricted datasets.
-3. NOT restate or closely mirror the paper's own contribution — the idea
-   must be something the authors did NOT do
+3. NEVER restate, summarize, or rehash the paper's own contribution.
+   If your hypothesis could appear in the paper's own abstract, discard
+   it and think harder.
 4. Not be an obvious extension already present in the literature
-   (e.g. do not suggest "applying momentum to crypto" as a novel idea)
-5. Have a genuinely testable hypothesis — not a vague research direction
+   (e.g. do not suggest "applying momentum to crypto" as a novel idea).
+5. Have a genuinely testable hypothesis — not a vague research direction.
+6. Introduce at least one concrete element (a different signal, model
+   class, data source, or market microstructure feature) that the paper
+   does not mention.
 
 For each idea, include:
 - hypothesis: a single testable sentence starting with "We hypothesize that..."

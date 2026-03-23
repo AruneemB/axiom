@@ -204,7 +204,7 @@ class TestSynthesizeIdea:
         assert call_kwargs[1]["headers"]["HTTP-Referer"] == "https://axiom.app"
         assert call_kwargs[1]["headers"]["X-Title"] == "Axiom"
         assert call_kwargs[1]["json"]["model"] == "google/gemini-flash-1.5"
-        assert call_kwargs[1]["json"]["temperature"] == 0.7
+        assert call_kwargs[1]["json"]["temperature"] == 0.9
         assert call_kwargs[1]["json"]["max_tokens"] == 1000
         assert result is not None
         assert result["novelty_score"] == 7

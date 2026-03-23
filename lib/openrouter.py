@@ -37,7 +37,7 @@ def synthesize_idea(
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": 0.7,
+            "temperature": 0.9,
             "max_tokens": 1000,
             "response_format": {"type": "json_object"},
         },
