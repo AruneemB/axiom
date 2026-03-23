@@ -190,6 +190,14 @@ curl "https://your-project.vercel.app/api/deliver?key=YOUR_CRON_SECRET"
 
 Your first idea should arrive in Telegram within 30 seconds.
 
+## 10. View the Dashboard
+
+Axiom includes a public landing page and dashboard to monitor its status:
+
+- **Dashboard**: `https://your-project.vercel.app/`
+- **Features**: Live status check, paper/idea counts, and a streaming ticker of monitored quant topics.
+- **Customization**: Edit `public/status.js` or `public/style.css` to further personalize the visual experience.
+
 ---
 
 ## Customization

@@ -138,3 +138,69 @@ h1 {
   letter-spacing: 0.08em;
   color: #475569;
 }
+
+.telegram-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  background: rgba(56, 189, 248, 0.05);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: 2rem;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.telegram-link:hover {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  transform: translateY(-1px);
+}
+
+.ticker-wrap {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(56, 189, 248, 0.08);
+  padding: 0.75rem 0;
+  overflow: hidden;
+}
+
+.ticker {
+  display: flex;
+  white-space: nowrap;
+  animation: ticker 60s linear infinite;
+}
+
+.ticker span {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #475569;
+  padding: 0 2rem;
+  position: relative;
+}
+
+.ticker span::after {
+  content: 'Â·';
+  position: absolute;
+  right: -0.25rem;
+  color: #1e293b;
+}
+
+@keyframes ticker {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@media (max-width: 640px) {
+  .card { padding: 2.5rem 2rem; width: 90%; }
+}
