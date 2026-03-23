@@ -45,7 +45,10 @@ def synthesize_idea(
     )
 
     response.raise_for_status()
-    content = response.json()["choices"][0]["message"]["content"]
+    raw = response.json()["choices"][0]["message"]["content"]
+    # Gemini "thinking" models sometimes emit lone UTF-16 surrogates;
+    # re-encode with surrogatepass then decode replacing them.
+    content = raw.encode("utf-8", errors="surrogatepass").decode("utf-8", errors="replace")
 
     try:
         parsed = json.loads(content)
