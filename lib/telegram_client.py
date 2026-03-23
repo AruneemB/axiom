@@ -49,9 +49,9 @@ def send_idea_message(
 
     inline_keyboard = {
         "inline_keyboard": [[
-            {"text": "\ud83d\udc4d Interesting", "callback_data": f"feedback:{idea_id}:1"},
-            {"text": "\ud83d\udc4e Skip", "callback_data": f"feedback:{idea_id}:-1"},
-            {"text": "\ud83d\udcc4 Paper", "url": url},
+            {"text": "\U0001F44D Interesting", "callback_data": f"feedback:{idea_id}:1"},
+            {"text": "\U0001F44E Skip", "callback_data": f"feedback:{idea_id}:-1"},
+            {"text": "\U0001F4C4 Paper", "url": url},
         ]]
     }
 
