@@ -1,15 +1,7 @@
-A new quantitative finance paper has been published. Extract the key
-details in the JSON format below.
+A new quantitative finance paper has been published. Analyze it and then
+generate research ideas based on the instructions that follow.
 
 Paper title: {title}
 
 Abstract:
 {abstract}
-
-Respond ONLY with this JSON structure:
-{
-  "methodology": "the core statistical or ML method used (1-2 sentences)",
-  "dataset": "what data is required: asset class, frequency, time period, source",
-  "finding": "the key empirical result, stated precisely in one sentence",
-  "limitation": "the primary stated limitation or caveat"
-}
