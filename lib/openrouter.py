@@ -16,7 +16,7 @@ def synthesize_idea(
     abstract: str,
     model: str,
     api_key: str,
-) -> Optional[dict]:
+) -> tuple[Optional[dict], str]:
 
     user_prompt = (
         EXTRACTION_TEMPLATE.replace("{title}", title).replace("{abstract}", abstract)
@@ -49,9 +49,13 @@ def synthesize_idea(
 
     try:
         parsed = json.loads(content)
-        return _validate_idea(parsed)
-    except (json.JSONDecodeError, KeyError, ValueError):
-        return None
+        result = _validate_idea(parsed)
+        if result is None:
+            keys = list(parsed.keys()) if isinstance(parsed, dict) else type(parsed).__name__
+            return None, f"validation failed, keys={keys}, raw={content[:300]}"
+        return result, ""
+    except (json.JSONDecodeError, KeyError, ValueError) as exc:
+        return None, f"parse error ({type(exc).__name__}): {exc}, raw={content[:300]}"
 
 
 def _validate_idea(raw: dict) -> Optional[dict]:

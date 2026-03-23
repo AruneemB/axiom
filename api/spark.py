@@ -51,7 +51,7 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
         send_message(chat_id, "No papers available right now. Try again later.", cfg.telegram_bot_token)
         return {"ok": False, "reason": "no_papers"}
 
-    idea = synthesize_idea(
+    idea, debug = synthesize_idea(
         title=paper["title"],
         abstract=paper["abstract"],
         model=cfg.default_model,
@@ -59,7 +59,8 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
     )
 
     if idea is None:
-        send_message(chat_id, "Could not generate an idea. Try again later.", cfg.telegram_bot_token)
+        msg = f"Could not generate an idea. Debug: {debug}"
+        send_message(chat_id, msg, cfg.telegram_bot_token)
         return {"ok": False, "reason": "llm_failure"}
 
     if idea["novelty_score"] + idea["feasibility_score"] < 10:

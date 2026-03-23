@@ -191,7 +191,7 @@ class TestSynthesizeIdea:
         mock_post.return_value = mock_response
 
         from lib.openrouter import synthesize_idea
-        result = synthesize_idea(
+        result, debug = synthesize_idea(
             title="Test Paper",
             abstract="Test abstract about momentum.",
             model="google/gemini-flash-1.5",
@@ -218,7 +218,7 @@ class TestSynthesizeIdea:
         mock_post.return_value = mock_response
 
         from lib.openrouter import synthesize_idea
-        result = synthesize_idea(
+        result, debug = synthesize_idea(
             title="Test", abstract="Test", model="m", api_key="k",
         )
         assert result is None

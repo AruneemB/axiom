@@ -75,7 +75,7 @@ class TestRunSpark:
             "id": "2305_12345", "title": "T", "abstract": "A",
             "url": "https://arxiv.org/abs/2305.12345",
         }
-        mock_synth.return_value = None
+        mock_synth.return_value = (None, "test debug")
         mock_conn, _ = _mock_conn_with_cursor()
         cfg = _make_config()
 
@@ -93,10 +93,10 @@ class TestRunSpark:
             "id": "2305_12345", "title": "T", "abstract": "A",
             "url": "https://arxiv.org/abs/2305.12345",
         }
-        mock_synth.return_value = {
+        mock_synth.return_value = ({
             "hypothesis": "H", "method": "M", "dataset": "D",
             "novelty_score": 3, "feasibility_score": 3,
-        }
+        }, "")
         mock_conn, _ = _mock_conn_with_cursor()
         cfg = _make_config()
 
@@ -116,10 +116,10 @@ class TestRunSpark:
             "id": "2305_12345", "title": "Test Paper", "abstract": "A",
             "url": "https://arxiv.org/abs/2305.12345",
         }
-        mock_synth.return_value = {
+        mock_synth.return_value = ({
             "hypothesis": "H1", "method": "M1", "dataset": "D1",
             "novelty_score": 7, "feasibility_score": 6,
-        }
+        }, "")
         mock_embed.return_value = [0.1] * 256
         mock_store.return_value = 42
         mock_conn, _ = _mock_conn_with_cursor()

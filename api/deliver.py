@@ -77,7 +77,7 @@ def run_deliver(cfg) -> dict:
         abstract = paper["abstract"]
         url = paper["url"]
 
-        idea = synthesize_idea(
+        idea, _ = synthesize_idea(
             title=title,
             abstract=abstract,
             model=model,

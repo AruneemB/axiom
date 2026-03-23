@@ -162,7 +162,7 @@ class TestRunDeliverModelSelection:
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)  # Monday (weekday=0)
         mock_conn = _mock_conn_with_papers([_make_paper()], [123])
         mock_conn_fn.return_value = mock_conn
-        mock_synth.return_value = _make_idea()
+        mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config(deepdive_day=4)
         result = run_deliver(cfg)
         assert result["model"] == "google/gemini-flash-1.5"
@@ -180,7 +180,7 @@ class TestRunDeliverModelSelection:
         mock_dt.utcnow.return_value = datetime(2024, 1, 19)  # Friday (weekday=4)
         mock_conn = _mock_conn_with_papers([_make_paper()], [123])
         mock_conn_fn.return_value = mock_conn
-        mock_synth.return_value = _make_idea()
+        mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config(deepdive_day=4)
         result = run_deliver(cfg)
         assert result["model"] == "anthropic/claude-haiku"
@@ -193,7 +193,7 @@ class TestRunDeliverModelSelection:
 class TestRunDeliverSkipReasons:
 
     @patch("api.deliver.mark_processed")
-    @patch("api.deliver.synthesize_idea", return_value=None)
+    @patch("api.deliver.synthesize_idea", return_value=(None, "mock error"))
     @patch("api.deliver.get_connection")
     @patch("api.deliver.datetime")
     def test_llm_parse_error_marks_processed(self, mock_dt, mock_conn_fn,
@@ -214,7 +214,7 @@ class TestRunDeliverSkipReasons:
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
         mock_conn = _mock_conn_with_papers([_make_paper()], [123])
         mock_conn_fn.return_value = mock_conn
-        mock_synth.return_value = _make_idea(novelty=3, feasibility=4)  # 7 < 13
+        mock_synth.return_value = (_make_idea(novelty=3, feasibility=4), "")  # 7 < 13
         cfg = _make_config(quality_gate_min=13)
         run_deliver(cfg)
         mock_mark.assert_called_with(mock_conn, "p1", skip_reason="below_quality_gate")
@@ -231,7 +231,7 @@ class TestRunDeliverSkipReasons:
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
         mock_conn = _mock_conn_with_papers([_make_paper()], [123])
         mock_conn_fn.return_value = mock_conn
-        mock_synth.return_value = _make_idea()
+        mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config()
         run_deliver(cfg)
         mock_mark.assert_called_with(mock_conn, "p1", skip_reason="duplicate_idea")
@@ -257,7 +257,7 @@ class TestRunDeliverSuccess:
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
         mock_conn = _mock_conn_with_papers([_make_paper()], [100, 200, 300])
         mock_conn_fn.return_value = mock_conn
-        mock_synth.return_value = _make_idea()
+        mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config()
         result = run_deliver(cfg)
         assert result["sent"] == 1
@@ -280,7 +280,7 @@ class TestRunDeliverSuccess:
         papers = [_make_paper(id=f"p{i}") for i in range(5)]
         mock_conn = _mock_conn_with_papers(papers, [123])
         mock_conn_fn.return_value = mock_conn
-        mock_synth.return_value = _make_idea()
+        mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config(max_ideas_per_day=2)
         result = run_deliver(cfg)
         assert result["sent"] == 2
@@ -300,7 +300,7 @@ class TestRunDeliverSuccess:
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
         mock_conn = _mock_conn_with_papers([_make_paper(id="2401.99999")], [123])
         mock_conn_fn.return_value = mock_conn
-        mock_synth.return_value = _make_idea()
+        mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config()
         result = run_deliver(cfg)
         assert "2401.99999" in result["papers"]
