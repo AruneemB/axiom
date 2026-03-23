@@ -1,34 +1,87 @@
 <p align="center">
-  <img src="favicon.svg" width="80" alt="Axiom logo">
+  <img src="favicon.svg" width="120" alt="Axiom logo">
 </p>
 
-# Axiom
+<h1 align="center">Axiom</h1>
 
-A serverless pipeline that monitors quantitative finance research, synthesizes actionable trading ideas using LLMs, and delivers them daily via Telegram.
+<p align="center">
+  <strong>A serverless pipeline for synthesizing quantitative research into actionable trading hypotheses.</strong>
+</p>
 
-Zero infrastructure. Near-zero cost. High signal.
-
-## Stack
-
-- **Runtime**: Vercel (Python serverless functions)
-- **Database**: Neon Postgres + pgvector
-- **LLM**: OpenRouter (Gemini Flash / Claude Haiku)
-- **Delivery**: Telegram Bot API
-- **Cost**: ~$0.04/month
-
-## How it works
-
-1. Fetches new papers from arXiv daily
-2. Filters through keyword matching and embedding similarity
-3. Synthesizes novel research ideas via LLM
-4. Applies quality and deduplication gates
-5. Delivers high-signal ideas to authorized users on Telegram
-6. Learns from feedback to personalize over time
-
-## Deploy Your Own
-
-See **[INSTRUCTIONS.md](INSTRUCTIONS.md)** for a step-by-step guide to deploying your own instance of Axiom.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel">
+  <img src="https://img.shields.io/badge/PostgreSQL-316192?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/Telegram-26A5E4?style=flat-square&logo=telegram&logoColor=white" alt="Telegram">
+  <img src="https://img.shields.io/badge/OpenRouter-AI-blue?style=flat-square" alt="OpenRouter">
+  <img src="https://img.shields.io/badge/pgvector-Embeddings-orange?style=flat-square" alt="pgvector">
+</p>
 
 ---
 
-*Built to find the signal.*
+Axiom is a lightweight, zero-infrastructure pipeline designed for quantitative researchers and traders. It monitors high-frequency academic outputs (primarily arXiv), applies a two-stage relevance filter, and employs state-of-the-art LLMs to synthesize novel research ideas — all delivered daily to your Telegram.
+
+## 🚀 Key Features
+
+- **Automated Ingestion**: Daily polling of `q-fin.PM`, `q-fin.ST`, and more.
+- **Intelligent Filtering**: Combines traditional keyword matching with semantic vector similarity (`pgvector` + `sentence-transformers`).
+- **Research Synthesis**: Generates structured hypotheses, implementation methods, and data requirements using OpenRouter (Gemini/Claude).
+- **Interactive Feedback**: Personalize your research feed via simple "Interesting" or "Skip" buttons in Telegram.
+- **Dynamic Learning**: The system automatically updates topic weights based on your feedback to improve future signal quality.
+- **Zero-Cost Operation**: Fully utilizes free tiers of Vercel, Neon, OpenRouter, and cron-job.org (~$0.03/month for high-volume API usage).
+
+## 🛠 Tech Stack
+
+Axiom is built for reliability and minimal maintenance.
+
+- **Language**: Python 3.11+
+- **Infrastructure**: Vercel Serverless Functions + Vercel Cron.
+- **Database**: Neon Postgres with `pgvector` for semantic search.
+- **Intelligence**: OpenRouter (Gemini 1.5 Flash for daily runs, Claude 3.5 Haiku for Friday deep-dives).
+- **Embeddings**: Local `sentence-transformers` (`all-MiniLM-L6-v2`) at 384 dimensions.
+
+> **[Read more about the Tech Stack](TECH-STACK.md)**
+
+## 📐 Architecture
+
+Axiom's architecture follows a classic event-driven pipeline: **Ingest → Filter → Synthesize → Deliver → Learn**.
+
+```mermaid
+graph LR
+    arXiv(arXiv) --> Fetch(api/fetch)
+    Fetch --> DB[(Neon Postgres)]
+    DB --> Deliver(api/deliver)
+    Deliver --> LLM(OpenRouter)
+    LLM --> Telegram(Telegram)
+    Telegram --> Feedback(api/telegram)
+    Feedback --> DB
+```
+
+> **[Explore the detailed Architecture](ARCHITECTURE.md)**
+
+## 🚦 Getting Started
+
+Setting up your own instance of Axiom takes less than 15 minutes.
+
+1.  **Clone the Repository**: `git clone https://github.com/your-username/axiom.git`
+2.  **Follow the Guide**: See **[INSTRUCTIONS.md](INSTRUCTIONS.md)** for step-by-step setup of Telegram, Neon, and Vercel.
+3.  **Seed Your Corpus**: Run `scripts/seed_corpus.py` with 10-20 arXiv IDs that represent your research interest.
+4.  **Go Live**: Deploy to Vercel and start receiving daily signals.
+
+## 📂 Project Structure
+
+```text
+├── api/             # Vercel Serverless Function entry points
+├── lib/             # Core business logic (arXiv, DB, LLM, Telegram)
+├── migrations/      # SQL schema management
+├── prompts/         # Structured LLM templates (System, Extraction, Ideation)
+├── public/          # Static assets (Favicon, CSS)
+├── scripts/         # Utility scripts (Seed corpus, Register webhook)
+└── tests/           # Comprehensive Pytest suite
+```
+
+---
+
+<p align="center">
+  <i>Built to find the signal in the noise.</i>
+</p>
