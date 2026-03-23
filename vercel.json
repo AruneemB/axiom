@@ -3,15 +3,6 @@
     "api/spark.py":   { "maxDuration": 60 },
     "api/deliver.py": { "maxDuration": 60 }
   },
-  "routes": [
-    { "src": "/api/fetch",    "dest": "/api/fetch.py" },
-    { "src": "/api/deliver",  "dest": "/api/deliver.py" },
-    { "src": "/api/telegram", "dest": "/api/telegram.py" },
-    { "src": "/api/spark",    "dest": "/api/spark.py" },
-    { "src": "/api/status",   "dest": "/api/status.py" },
-    { "src": "/favicon.svg",  "dest": "/favicon.svg" },
-    { "src": "/(.*)",         "dest": "/public/$1" }
-  ],
   "crons": [
     { "path": "/api/fetch",   "schedule": "0 6 * * *" },
     { "path": "/api/deliver", "schedule": "0 8 * * *" }
