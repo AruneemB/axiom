@@ -74,7 +74,7 @@ class TestLoadConfigDefaults:
     def test_default_model(self, monkeypatch):
         _set_required(monkeypatch)
         cfg = load_config()
-        assert cfg.default_model == "google/gemini-flash-1.5"
+        assert cfg.default_model == "google/gemini-2.5-flash"
 
     def test_default_deepdive_model(self, monkeypatch):
         _set_required(monkeypatch)

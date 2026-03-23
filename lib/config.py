@@ -38,7 +38,7 @@ def load_config() -> Config:
         bot_password=require("BOT_PASSWORD"),
         database_url=require("DATABASE_URL"),
         openrouter_api_key=require("OPENROUTER_API_KEY"),
-        default_model=os.getenv("DEFAULT_MODEL", "google/gemini-flash-1.5"),
+        default_model=os.getenv("DEFAULT_MODEL", "google/gemini-2.5-flash"),
         deepdive_model=os.getenv("DEEPDIVE_MODEL", "anthropic/claude-3-5-haiku-20241022"),
         deepdive_day=int(os.getenv("DEEPDIVE_DAY", "4")),
         cron_secret=require("CRON_SECRET"),
