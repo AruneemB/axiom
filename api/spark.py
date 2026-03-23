@@ -116,7 +116,7 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
         scored = []
         for p in arxiv_papers:
             score, keyword_hits = relevance_filter.score(p.abstract)
-            if score >= cfg.relevance_threshold:
+            if keyword_hits:  # Any keyword match — user explicitly asked for an idea
                 scored.append((score, keyword_hits, p))
         if scored:
             scored.sort(key=lambda x: x[0], reverse=True)
