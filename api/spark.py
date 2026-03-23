@@ -31,7 +31,7 @@ class handler(BaseHTTPRequestHandler):
             result = run_spark(user_id, chat_id, conn, cfg)
             self._respond(200, result)
         except Exception as e:
-            send_message(chat_id, f"Something went wrong: {e}", cfg.telegram_bot_token)
+            send_message(chat_id, f"Something went wrong (model={cfg.default_model}): {e}", cfg.telegram_bot_token)
             self._respond(500, {"error": str(e)})
         finally:
             conn.close()
