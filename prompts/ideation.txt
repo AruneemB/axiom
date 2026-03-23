@@ -6,9 +6,11 @@ quantitative research ideas. Each idea must:
 2. Be feasible with data available via: Bloomberg Terminal, CRSP,
    Compustat, Quandl/Nasdaq Data Link, Binance/Coinbase APIs, SEC EDGAR,
    or FactSet. Do not require proprietary or restricted datasets.
-3. Not be an obvious extension already present in the literature
+3. NOT restate or closely mirror the paper's own contribution — the idea
+   must be something the authors did NOT do
+4. Not be an obvious extension already present in the literature
    (e.g. do not suggest "applying momentum to crypto" as a novel idea)
-4. Have a genuinely testable hypothesis — not a vague research direction
+5. Have a genuinely testable hypothesis — not a vague research direction
 
 For each idea, include:
 - hypothesis: a single testable sentence starting with "We hypothesize that..."
