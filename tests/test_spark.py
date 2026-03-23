@@ -122,7 +122,7 @@ class TestRunSpark:
         }, "")
         mock_embed.return_value = [0.1] * 256
         mock_store.return_value = 42
-        mock_conn, _ = _mock_conn_with_cursor()
+        mock_conn, mock_cursor = _mock_conn_with_cursor()
         cfg = _make_config()
 
         result = run_spark(123, 456, mock_conn, cfg)
@@ -131,6 +131,13 @@ class TestRunSpark:
         assert result["idea_id"] == 42
         mock_store.assert_called_once()
         mock_send_idea.assert_called_once()
+
+        # Verify paper is marked as processed for diversity
+        update_calls = [
+            c for c in mock_cursor.execute.call_args_list
+            if "UPDATE papers SET processed" in str(c)
+        ]
+        assert len(update_calls) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +155,32 @@ class TestFindPaperForSpark:
         result = _find_paper_for_spark(mock_conn, cfg)
 
         assert result == paper_row
+
+    @patch("api.spark.fetch_recent_papers")
+    def test_tier2_excludes_papers_already_in_db(self, mock_fetch):
+        """Tier 2 skips arXiv papers that are already in the database."""
+        mock_cursor = MagicMock()
+        # Tier 1: no unprocessed paper
+        mock_cursor.fetchone.return_value = None
+        # DB lookup for existing papers: all arXiv papers already exist
+        mock_cursor.fetchall.side_effect = [
+            [{"id": "2305_aaaa"}],  # existing IDs query
+            [],                      # Tier 3: no archived papers
+        ]
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        arxiv_paper = MagicMock()
+        arxiv_paper.id = "2305_aaaa"
+        arxiv_paper.abstract = "momentum strategy"
+        mock_fetch.return_value = [arxiv_paper]
+        cfg = _make_config()
+
+        result = _find_paper_for_spark(mock_conn, cfg)
+
+        # Paper was in DB so Tier 2 skipped it, Tier 3 also empty → None
+        assert result is None
 
     @patch("api.spark.fetch_recent_papers")
     def test_tier3_returns_random_archived_paper(self, mock_fetch):
