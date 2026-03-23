@@ -83,5 +83,5 @@ Setting up your own instance of Axiom takes less than 15 minutes.
 ---
 
 <p align="center">
-  <i>Built to find the signal in the noise.</i>
+  <i>Built to find signal in the noise.</i>
 </p>
