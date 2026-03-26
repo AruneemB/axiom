@@ -28,6 +28,7 @@ Axiom is a lightweight, zero-infrastructure pipeline designed for quantitative r
 - **Research Synthesis**: Generates structured hypotheses, implementation methods, and data requirements using OpenRouter (Gemini/Claude).
 - **Interactive Feedback**: Personalize your research feed via simple "Interesting" or "Skip" buttons in Telegram.
 - **Dynamic Learning**: The system automatically updates topic weights based on your feedback to improve future signal quality.
+- **Recent Papers Feed**: Click the Papers count on the landing page to reveal an expandable drawer showing the 20 most recent papers with arXiv links, category badges, and relative timestamps.
 - **Zero-Cost Operation**: Fully utilizes free tiers of Vercel, Neon, OpenRouter, and cron-job.org (~$0.03/month for high-volume API usage).
 
 ## 🛠 Tech Stack
@@ -75,7 +76,7 @@ Setting up your own instance of Axiom takes less than 15 minutes.
 ├── lib/             # Core business logic (arXiv, DB, LLM, Telegram)
 ├── migrations/      # SQL schema management
 ├── prompts/         # Structured LLM templates (System, Extraction, Ideation)
-├── public/          # Static assets (Favicon, CSS)
+├── public/          # Landing page (HTML, CSS, JS)
 ├── scripts/         # Utility scripts (Seed corpus, Register webhook)
 └── tests/           # Comprehensive Pytest suite
 ```

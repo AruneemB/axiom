@@ -51,6 +51,11 @@ graph TD
 - **Vector Search**: Leverages `pgvector` for efficient cosine similarity searches in 384-dimensional space.
 - **Automated Migrations**: SQL-based schema management for easy deployment.
 
+### 5. Landing Page & Public API (`api/status`, `api/papers`)
+- **Status Endpoint**: Returns live system health, total paper/idea counts, and last fetch/deliver timestamps.
+- **Papers Endpoint**: Returns the 20 most recent non-skipped papers (title, categories, arXiv URL, fetched timestamp). Unauthenticated, CORS-enabled.
+- **Interactive Landing Page**: A static page (`public/`) showing system status, a topic ticker, and an expandable papers drawer triggered by clicking the Papers count.
+
 ## Security & Reliability
 - **Webhook Secrets**: Verifies Telegram payloads using HMAC constant-time comparison.
 - **Cron Authentication**: API endpoints are protected by a `CRON_SECRET` key.

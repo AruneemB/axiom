@@ -195,7 +195,8 @@ Your first idea should arrive in Telegram within 30 seconds.
 Axiom includes a public landing page and dashboard to monitor its status:
 
 - **Dashboard**: `https://your-project.vercel.app/`
-- **Features**: Live status check, paper/idea counts, and a streaming ticker of monitored quant topics.
+- **Features**: Live status check, paper/idea counts, a streaming ticker of monitored quant topics, and an expandable recent papers drawer.
+- **Papers drawer**: Click the Papers count to reveal the 20 most recent papers with arXiv links, category badges, and relative timestamps. The drawer lazy-loads from `/api/papers` on first open.
 - **Customization**: Edit `public/status.js` or `public/style.css` to further personalize the visual experience.
 
 ---
