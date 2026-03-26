@@ -67,7 +67,7 @@ Run this three times to produce values for:
 |---|---|
 | `TELEGRAM_WEBHOOK_SECRET` | Verifies incoming Telegram webhook requests |
 | `BOT_PASSWORD` | Password new users send via `/start` to gain access |
-| `CRON_SECRET` | Appended to cron trigger URLs to prevent unauthorized calls |
+| `CRON_SECRET` | Authenticates cron requests via `Authorization: Bearer` header (Vercel cron) or `?key=` query parameter (manual) |
 
 ## 5. Deploy to Vercel
 
@@ -155,24 +155,30 @@ python scripts/seed_corpus.py \
 
 Replace the IDs with real arXiv papers. Good candidates: foundational papers on momentum, factor models, volatility, or whatever topics match your `ALLOWED_TOPICS`.
 
-## 8. Configure Cron Jobs
+## 8. Cron Jobs
 
-Axiom uses two daily triggers. Set these up at [cron-job.org](https://cron-job.org) (free):
+Vercel's built-in cron scheduler handles both daily triggers automatically — see the `crons` section in `vercel.json`. Vercel sends an `Authorization: Bearer <CRON_SECRET>` header on each invocation, so no manual cron service is needed.
 
-| Job | URL | Schedule |
+| Job | Path | Schedule |
 |---|---|---|
-| Fetch | `https://your-project.vercel.app/api/fetch?key=CRON_SECRET` | `0 6 * * *` (06:00 UTC) |
-| Deliver | `https://your-project.vercel.app/api/deliver?key=CRON_SECRET` | `0 8 * * *` (08:00 UTC) |
+| Fetch | `/api/fetch` | `0 6 * * *` (06:00 UTC) |
+| Deliver | `/api/deliver` | `0 8 * * *` (08:00 UTC) |
 
-Replace `CRON_SECRET` with your actual secret value in the URL.
+If you prefer an external cron service (e.g. [cron-job.org](https://cron-job.org)), use the `?key=` query parameter instead:
 
-Enable email notifications for failures on both jobs so you're alerted if a run returns non-200.
+```
+https://your-project.vercel.app/api/fetch?key=YOUR_CRON_SECRET
+```
 
 ## 9. Smoke Test
 
-Trigger the fetch endpoint manually:
+Trigger the fetch endpoint manually (either method works):
 
 ```bash
+# Using Bearer header
+curl -H "Authorization: Bearer YOUR_CRON_SECRET" "https://your-project.vercel.app/api/fetch"
+
+# Using query parameter
 curl "https://your-project.vercel.app/api/fetch?key=YOUR_CRON_SECRET"
 ```
 
@@ -185,7 +191,7 @@ SELECT id, title, relevance_score FROM papers ORDER BY fetched_at DESC LIMIT 5;
 Trigger the deliver endpoint:
 
 ```bash
-curl "https://your-project.vercel.app/api/deliver?key=YOUR_CRON_SECRET"
+curl -H "Authorization: Bearer YOUR_CRON_SECRET" "https://your-project.vercel.app/api/deliver"
 ```
 
 Your first idea should arrive in Telegram within 30 seconds.
