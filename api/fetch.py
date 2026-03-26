@@ -13,10 +13,14 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         cfg = load_config()
 
-        # Verify cron secret
+        # Verify cron secret (Bearer header or ?key= param)
         from urllib.parse import urlparse, parse_qs
         params = parse_qs(urlparse(self.path).query)
-        if params.get("key", [None])[0] != cfg.cron_secret:
+        auth_header = self.headers.get("Authorization", "")
+        bearer_token = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else None
+        key_param = params.get("key", [None])[0]
+
+        if cfg.cron_secret not in (bearer_token, key_param):
             self._respond(401, {"error": "unauthorized"})
             return
 

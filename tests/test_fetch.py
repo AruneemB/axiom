@@ -19,13 +19,14 @@ from api.fetch import handler, run_fetch  # noqa: E402
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_handler_mock(**path_kwargs):
+def _make_handler_mock(headers=None):
     """Create a mock handler with real _respond bound."""
     h = MagicMock(spec=handler)
     h.wfile = BytesIO()
     h.send_response = MagicMock()
     h.send_header = MagicMock()
     h.end_headers = MagicMock()
+    h.headers = headers or {}
     # Bind real _respond so do_GET can write proper responses
     h._respond = lambda status, body: handler._respond(h, status, body)
     return h
@@ -119,6 +120,37 @@ class TestHandlerCronAuth:
         handler.do_GET(h)
         h.send_response.assert_called_with(200)
         mock_run.assert_called_once()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_accepts_valid_bearer_token(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        mock_run.return_value = {"fetched": 0, "stored": 0, "skipped": 0}
+        h = _make_handler_mock(headers={"Authorization": "Bearer my-secret"})
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(200)
+        mock_run.assert_called_once()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_rejects_invalid_bearer_token(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        h = _make_handler_mock(headers={"Authorization": "Bearer wrong-secret"})
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(401)
+        mock_run.assert_not_called()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_rejects_no_auth(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        h = _make_handler_mock()
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(401)
+        mock_run.assert_not_called()
 
 
 class TestHandlerRespond:
