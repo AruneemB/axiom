@@ -58,5 +58,5 @@ graph TD
 
 ## Security & Reliability
 - **Webhook Secrets**: Verifies Telegram payloads using HMAC constant-time comparison.
-- **Cron Authentication**: API endpoints are protected by a `CRON_SECRET` key.
+- **Cron Authentication**: API endpoints verify `CRON_SECRET` via `Authorization: Bearer` header (used by Vercel cron) or `?key=` query parameter (for manual invocation).
 - **Serverless Resilience**: Distributed across Vercel's global edge network, minimizing latency and eliminating single points of failure.
