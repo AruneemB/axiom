@@ -8,29 +8,37 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <div class="card">
-    <img class="logo" src="/favicon.svg" alt="Axiom">
-    <h1>Axiom</h1>
-    <p class="tagline">Built to find the signal.</p>
-    <div class="divider"></div>
-    <div class="status" id="status">
-      <span class="dot"></span>
-      <span id="status-text">Checking&hellip;</span>
-    </div>
-    <div class="stats" id="stats">
-      <div class="stat">
-        <span class="stat-value" id="papers">-</span>
-        <span class="stat-label">Papers</span>
+  <div class="page-wrap">
+    <div class="card">
+      <img class="logo" src="/favicon.svg" alt="Axiom">
+      <h1>Axiom</h1>
+      <p class="tagline">Built to find the signal.</p>
+      <div class="divider"></div>
+      <div class="status" id="status">
+        <span class="dot"></span>
+        <span id="status-text">Checking&hellip;</span>
       </div>
-      <div class="stat">
-        <span class="stat-value" id="ideas">-</span>
-        <span class="stat-label">Ideas</span>
+      <div class="stats" id="stats">
+        <button class="stat papers-toggle" id="papers-toggle" aria-expanded="false">
+          <span class="stat-value" id="papers">-</span>
+          <span class="stat-label">Papers <svg class="chevron" width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5 L5 6.5 L8 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </button>
+        <div class="stat">
+          <span class="stat-value" id="ideas">-</span>
+          <span class="stat-label">Ideas</span>
+        </div>
+      </div>
+      <a href="https://t.me/axiom_aruneemb_bot" class="telegram-link" target="_blank" rel="noopener noreferrer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+        <span>@axiom_aruneemb_bot</span>
+      </a>
+    </div>
+
+    <div class="papers-panel" id="papers-panel" hidden>
+      <div class="papers-list" id="papers-list">
+        <p class="papers-empty">Loading&hellip;</p>
       </div>
     </div>
-    <a href="https://t.me/axiom_aruneemb_bot" class="telegram-link" target="_blank" rel="noopener noreferrer">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-      <span>@axiom_aruneemb_bot</span>
-    </a>
   </div>
 
   <div class="ticker-wrap">
