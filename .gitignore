@@ -2,6 +2,7 @@
 .specstory/
 .history/
 .claude/
+.vscode/
 
 # Project docs (non-source)
 AXIOM-INSIGHTS.md
