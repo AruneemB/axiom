@@ -28,13 +28,15 @@ class TestVercelConfig:
         assert schedules["/api/fetch"] == "0 6 * * *"
         assert schedules["/api/deliver"] == "0 8 * * *"
 
-    def test_has_three_build_configs(self):
-        cfg = _load_vercel_json()
-        assert len(cfg["builds"]) == 3
-
-    def test_builds_use_python_runtime(self):
+    def test_all_api_endpoints_have_build_configs(self):
         cfg = _load_vercel_json()
         sources = {b["src"] for b in cfg["builds"]}
-        assert sources == {"api/fetch.py", "api/deliver.py", "api/telegram.py"}
+        for endpoint in ["api/fetch.py", "api/deliver.py", "api/telegram.py",
+                         "api/spark.py", "api/status.py", "api/papers.py"]:
+            assert endpoint in sources
+
+    def test_api_builds_use_python_runtime(self):
+        cfg = _load_vercel_json()
         for b in cfg["builds"]:
-            assert b["use"] == "@vercel/python"
+            if b["src"].startswith("api/"):
+                assert b["use"] == "@vercel/python"
