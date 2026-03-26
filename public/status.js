@@ -75,4 +75,62 @@
     el.className = 'status error';
     text.textContent = 'Unreachable';
   }
+
+  // --- Papers drawer ---
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function timeAgo(isoString) {
+    if (!isoString) return '';
+    var diff = (Date.now() - new Date(isoString).getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
+  var papersLoaded = false;
+  var toggle = document.getElementById('papers-toggle');
+  var panel = document.getElementById('papers-panel');
+  var list = document.getElementById('papers-list');
+
+  function loadPapers() {
+    if (papersLoaded) return;
+    papersLoaded = true;
+    fetch('/api/papers')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.papers || d.papers.length === 0) {
+          list.innerHTML = '<p class="papers-empty">No papers yet.</p>';
+          return;
+        }
+        list.innerHTML = d.papers.map(function (p) {
+          var cats = (p.categories || []).map(function (c) {
+            return '<span class="paper-category">' + escapeHtml(c) + '</span>';
+          }).join('');
+          var time = p.fetched_at ? '<span class="paper-time">' + escapeHtml(timeAgo(p.fetched_at)) + '</span>' : '';
+          return '<div class="paper-item">' +
+            '<div class="paper-title"><a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(p.title) + '</a></div>' +
+            '<div class="paper-meta">' + cats + time + '</div>' +
+            '</div>';
+        }).join('');
+      })
+      .catch(function () {
+        list.innerHTML = '<p class="papers-empty">Failed to load papers.</p>';
+      });
+  }
+
+  if (toggle && panel) {
+    toggle.addEventListener('click', function () {
+      var expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      panel.hidden = expanded;
+      document.body.classList.toggle('papers-open', !expanded);
+      if (!expanded) loadPapers();
+    });
+  }
 })();
