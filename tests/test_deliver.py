@@ -19,12 +19,13 @@ from api.deliver import (  # noqa: E402
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_handler_mock():
+def _make_handler_mock(headers=None):
     h = MagicMock(spec=handler)
     h.wfile = BytesIO()
     h.send_response = MagicMock()
     h.send_header = MagicMock()
     h.end_headers = MagicMock()
+    h.headers = headers or {}
     h._respond = lambda status, body: handler._respond(h, status, body)
     return h
 
@@ -107,6 +108,26 @@ class TestDeliverHandlerAuth:
         h.path = "/api/deliver?key=my-secret"
         handler.do_GET(h)
         h.send_response.assert_called_with(200)
+
+    @patch("api.deliver.load_config")
+    @patch("api.deliver.run_deliver")
+    def test_accepts_valid_bearer_token(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        mock_run.return_value = {"sent": 0, "reason": "no papers or no active users"}
+        h = _make_handler_mock(headers={"Authorization": "Bearer my-secret"})
+        h.path = "/api/deliver"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(200)
+
+    @patch("api.deliver.load_config")
+    @patch("api.deliver.run_deliver")
+    def test_rejects_invalid_bearer_token(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        h = _make_handler_mock(headers={"Authorization": "Bearer wrong-secret"})
+        h.path = "/api/deliver"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(401)
+        mock_run.assert_not_called()
 
     @patch("api.deliver.load_config")
     @patch("api.deliver.run_deliver", side_effect=RuntimeError("fail"))
