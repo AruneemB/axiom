@@ -5,6 +5,7 @@
     { "src": "api/telegram.py", "use": "@vercel/python" },
     { "src": "api/spark.py",    "use": "@vercel/python" },
     { "src": "api/status.py",   "use": "@vercel/python" },
+    { "src": "api/papers.py",  "use": "@vercel/python" },
     { "src": "public/**",       "use": "@vercel/static" },
     { "src": "favicon.svg",     "use": "@vercel/static" }
   ],
@@ -14,6 +15,7 @@
     { "src": "/api/telegram", "dest": "/api/telegram.py" },
     { "src": "/api/spark",    "dest": "/api/spark.py" },
     { "src": "/api/status",   "dest": "/api/status.py" },
+    { "src": "/api/papers",  "dest": "/api/papers.py" },
     { "src": "/favicon.svg",  "dest": "/favicon.svg" },
     { "src": "/(.*)",         "dest": "/public/$1" }
   ],
