@@ -19,13 +19,14 @@ from api.fetch import handler, run_fetch  # noqa: E402
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_handler_mock(**path_kwargs):
+def _make_handler_mock(headers=None):
     """Create a mock handler with real _respond bound."""
     h = MagicMock(spec=handler)
     h.wfile = BytesIO()
     h.send_response = MagicMock()
     h.send_header = MagicMock()
     h.end_headers = MagicMock()
+    h.headers = headers or {}
     # Bind real _respond so do_GET can write proper responses
     h._respond = lambda status, body: handler._respond(h, status, body)
     return h
@@ -115,6 +116,117 @@ class TestHandlerCronAuth:
         mock_cfg.return_value = _make_config()
         mock_run.return_value = {"fetched": 0, "stored": 0, "skipped": 0}
         h = _make_handler_mock()
+        h.path = "/api/fetch?key=my-secret"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(200)
+        mock_run.assert_called_once()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_accepts_valid_bearer_token(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        mock_run.return_value = {"fetched": 0, "stored": 0, "skipped": 0}
+        h = _make_handler_mock(headers={"Authorization": "Bearer my-secret"})
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(200)
+        mock_run.assert_called_once()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_rejects_invalid_bearer_token(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        h = _make_handler_mock(headers={"Authorization": "Bearer wrong-secret"})
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(401)
+        mock_run.assert_not_called()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_rejects_no_auth(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        h = _make_handler_mock()
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(401)
+        mock_run.assert_not_called()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_rejects_non_bearer_scheme(self, mock_run, mock_cfg):
+        """Non-Bearer Authorization scheme (e.g. Basic) is not accepted."""
+        mock_cfg.return_value = _make_config()
+        h = _make_handler_mock(headers={"Authorization": "Basic my-secret"})
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(401)
+        mock_run.assert_not_called()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_rejects_empty_bearer_token(self, mock_run, mock_cfg):
+        """'Bearer ' prefix with no actual token is rejected."""
+        mock_cfg.return_value = _make_config()
+        h = _make_handler_mock(headers={"Authorization": "Bearer "})
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(401)
+        mock_run.assert_not_called()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_rejects_lowercase_bearer(self, mock_run, mock_cfg):
+        """Lowercase 'bearer' prefix is not treated as Bearer auth."""
+        mock_cfg.return_value = _make_config()
+        h = _make_handler_mock(headers={"Authorization": "bearer my-secret"})
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(401)
+        mock_run.assert_not_called()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_accepts_valid_key_when_bearer_is_wrong(self, mock_run, mock_cfg):
+        """Valid ?key= param overrides an invalid Bearer token -> 200."""
+        mock_cfg.return_value = _make_config()
+        mock_run.return_value = {"fetched": 0, "stored": 0, "skipped": 0}
+        h = _make_handler_mock(headers={"Authorization": "Bearer wrong-secret"})
+        h.path = "/api/fetch?key=my-secret"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(200)
+        mock_run.assert_called_once()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_accepts_valid_bearer_when_key_is_wrong(self, mock_run, mock_cfg):
+        """Valid Bearer token overrides an invalid ?key= param -> 200."""
+        mock_cfg.return_value = _make_config()
+        mock_run.return_value = {"fetched": 0, "stored": 0, "skipped": 0}
+        h = _make_handler_mock(headers={"Authorization": "Bearer my-secret"})
+        h.path = "/api/fetch?key=wrong-secret"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(200)
+        mock_run.assert_called_once()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_rejects_both_key_and_bearer_wrong(self, mock_run, mock_cfg):
+        """Both ?key= and Bearer token wrong -> 401."""
+        mock_cfg.return_value = _make_config()
+        h = _make_handler_mock(headers={"Authorization": "Bearer bad"})
+        h.path = "/api/fetch?key=bad"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(401)
+        mock_run.assert_not_called()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
+    def test_accepts_both_key_and_bearer_valid(self, mock_run, mock_cfg):
+        """Both ?key= and Bearer token valid -> 200 (redundant but well-formed)."""
+        mock_cfg.return_value = _make_config()
+        mock_run.return_value = {"fetched": 0, "stored": 0, "skipped": 0}
+        h = _make_handler_mock(headers={"Authorization": "Bearer my-secret"})
         h.path = "/api/fetch?key=my-secret"
         handler.do_GET(h)
         h.send_response.assert_called_with(200)
