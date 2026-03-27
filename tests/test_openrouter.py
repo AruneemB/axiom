@@ -247,3 +247,85 @@ class TestSynthesizeIdea:
         user_content = messages[1]["content"]
         assert "My Paper Title" in user_content
         assert "My paper abstract content." in user_content
+
+class TestReliability:
+
+    @patch("lib.openrouter.time.sleep")
+    @patch("lib.openrouter.httpx.post")
+    def test_retries_on_timeout(self, mock_post, mock_sleep):
+        import httpx
+        from lib.openrouter import synthesize_idea
+        
+        # Fail twice with timeout, succeed on third attempt
+        mock_post.side_effect = [
+            httpx.TimeoutException("timeout 1"),
+            httpx.TimeoutException("timeout 2"),
+            MagicMock(json=lambda: {
+                "choices": [{"message": {"content": json.dumps({
+                    "hypothesis": "h", "method": "m", "dataset": "d",
+                    "novelty_score": 7, "feasibility_score": 8,
+                })}}]
+            })
+        ]
+        
+        result, debug = synthesize_idea(
+            title="T", abstract="A", model="primary", api_key="k", max_retries=2
+        )
+        
+        assert result is not None
+        assert mock_post.call_count == 3
+        assert mock_sleep.call_count == 2
+
+    @patch("lib.openrouter.time.sleep")
+    @patch("lib.openrouter.httpx.post")
+    def test_fallback_model_after_max_retries(self, mock_post, mock_sleep):
+        import httpx
+        from lib.openrouter import synthesize_idea
+        
+        # Fail primary 3 times (0, 1, 2 retries), then succeed with fallback
+        mock_post.side_effect = [
+            httpx.TimeoutException("primary timeout 1"),
+            httpx.TimeoutException("primary timeout 2"),
+            httpx.TimeoutException("primary timeout 3"),
+            MagicMock(json=lambda: {
+                "choices": [{"message": {"content": json.dumps({
+                    "hypothesis": "fallback-h", "method": "m", "dataset": "d",
+                    "novelty_score": 7, "feasibility_score": 8,
+                })}}]
+            })
+        ]
+        
+        result, debug = synthesize_idea(
+            title="T", abstract="A", model="primary", api_key="k", 
+            fallback_model="fallback-model", max_retries=2
+        )
+        
+        assert result is not None
+        assert result["hypothesis"] == "fallback-h"
+        assert mock_post.call_count == 4
+        # Verify last call used fallback model
+        last_call_json = mock_post.call_args[1]["json"]
+        assert last_call_json["model"] == "fallback-model"
+
+    @patch("lib.openrouter.time.sleep")
+    @patch("lib.openrouter.httpx.post")
+    def test_fails_if_fallback_also_fails(self, mock_post, mock_sleep):
+        import httpx
+        from lib.openrouter import synthesize_idea
+        
+        # Fail primary 3 times, then fail fallback
+        mock_post.side_effect = [
+            httpx.TimeoutException("p1"),
+            httpx.TimeoutException("p2"),
+            httpx.TimeoutException("p3"),
+            httpx.TimeoutException("fallback fail")
+        ]
+        
+        result, debug = synthesize_idea(
+            title="T", abstract="A", model="primary", api_key="k", 
+            fallback_model="fallback-model", max_retries=2
+        )
+        
+        assert result is None
+        assert "fallback failed" in debug
+        assert mock_post.call_count == 4

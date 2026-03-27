@@ -31,7 +31,8 @@ class handler(BaseHTTPRequestHandler):
             result = run_spark(user_id, chat_id, conn, cfg)
             self._respond(200, result)
         except Exception as e:
-            send_message(chat_id, f"Something went wrong (model={cfg.default_model}): {e}", cfg.telegram_bot_token)
+            msg = "Something went wrong. Please try again in a moment."
+            send_message(chat_id, msg, cfg.telegram_bot_token)
             self._respond(500, {"error": str(e)})
         finally:
             conn.close()
@@ -56,10 +57,15 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
         abstract=paper["abstract"],
         model=cfg.default_model,
         api_key=cfg.openrouter_api_key,
+        fallback_model=cfg.fallback_model,
     )
 
     if idea is None:
-        msg = f"Could not generate an idea. Debug: {debug}"
+        if "Max retries reached" in debug or "Primary failed" in debug:
+            msg = "The AI model is taking a bit too long to think. Please try again in a moment."
+        else:
+            msg = "I couldn't generate an idea from this paper. Let's try another one later."
+        
         send_message(chat_id, msg, cfg.telegram_bot_token)
         return {"ok": False, "reason": "llm_failure"}
 

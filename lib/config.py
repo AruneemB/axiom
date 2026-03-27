@@ -11,6 +11,7 @@ class Config:
     database_url: str
     openrouter_api_key: str
     default_model: str
+    fallback_model: str
     deepdive_model: str
     deepdive_day: int
     cron_secret: str
@@ -39,6 +40,7 @@ def load_config() -> Config:
         database_url=require("DATABASE_URL"),
         openrouter_api_key=require("OPENROUTER_API_KEY"),
         default_model=os.getenv("DEFAULT_MODEL", "google/gemini-2.5-flash"),
+        fallback_model=os.getenv("FALLBACK_MODEL", "google/gemini-2.0-flash"),
         deepdive_model=os.getenv("DEEPDIVE_MODEL", "anthropic/claude-3-5-haiku-20241022"),
         deepdive_day=int(os.getenv("DEEPDIVE_DAY", "4")),
         cron_secret=require("CRON_SECRET"),

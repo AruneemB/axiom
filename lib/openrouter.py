@@ -1,5 +1,6 @@
 import json
 import httpx
+import time
 from typing import Optional
 from pathlib import Path
 
@@ -16,6 +17,9 @@ def synthesize_idea(
     abstract: str,
     model: str,
     api_key: str,
+    fallback_model: Optional[str] = None,
+    max_retries: int = 2,
+    timeout: int = 60,
 ) -> tuple[Optional[dict], str]:
 
     user_prompt = (
@@ -24,27 +28,68 @@ def synthesize_idea(
         + IDEATION_TEMPLATE
     )
 
-    response = httpx.post(
-        f"{OPENROUTER_BASE}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "HTTP-Referer": "https://axiom.app",
-            "X-Title": "Axiom",
-        },
-        json={
-            "model": model,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.9,
-            "max_tokens": 1000,
-            "response_format": {"type": "json_object"},
-        },
-        timeout=30,
-    )
+    last_error = ""
+    # Try with primary model
+    for attempt in range(max_retries + 1):
+        try:
+            response = httpx.post(
+                f"{OPENROUTER_BASE}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "HTTP-Referer": "https://axiom.app",
+                    "X-Title": "Axiom",
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "temperature": 0.9,
+                    "max_tokens": 1000,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            break
+        except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+            last_error = str(e)
+            if attempt < max_retries:
+                time.sleep(2 ** attempt)
+                continue
+            
+            # If primary fails and we have a fallback, try the fallback once
+            if fallback_model:
+                try:
+                    response = httpx.post(
+                        f"{OPENROUTER_BASE}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "HTTP-Referer": "https://axiom.app",
+                            "X-Title": "Axiom",
+                        },
+                        json={
+                            "model": fallback_model,
+                            "messages": [
+                                {"role": "system", "content": SYSTEM_PROMPT},
+                                {"role": "user", "content": user_prompt},
+                            ],
+                            "temperature": 0.9,
+                            "max_tokens": 1000,
+                            "response_format": {"type": "json_object"},
+                        },
+                        timeout=30, # Shorter timeout for fallback
+                    )
+                    response.raise_for_status()
+                    break # Success with fallback
+                except Exception as fe:
+                    return None, f"Primary failed ({last_error}) and fallback failed: {str(fe)}"
+            
+            return None, f"Max retries reached. Last error: {last_error}"
+        except Exception as e:
+            return None, f"Unexpected error: {str(e)}"
 
-    response.raise_for_status()
     raw = response.json()["choices"][0]["message"]["content"]
     # Gemini "thinking" models sometimes emit lone UTF-16 surrogates;
     # re-encode with surrogatepass then decode replacing them.
