@@ -83,7 +83,7 @@ class TestRunSpark:
 
         assert result["ok"] is False
         assert result["reason"] == "llm_failure"
-        assert "Could not generate" in mock_send.call_args[0][1]
+        assert "I couldn't generate" in mock_send.call_args[0][1]
 
     @patch("api.spark.send_message")
     @patch("api.spark.synthesize_idea")
