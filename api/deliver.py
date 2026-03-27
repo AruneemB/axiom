@@ -87,6 +87,7 @@ def run_deliver(cfg) -> dict:
             abstract=abstract,
             model=model,
             api_key=cfg.openrouter_api_key,
+            fallback_model=cfg.fallback_model,
         )
 
         if idea is None:
