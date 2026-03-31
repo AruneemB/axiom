@@ -242,6 +242,8 @@ class TestRunDeliverEarlyExit:
         cfg = _make_config()
         result = run_deliver(cfg)
         assert result["sent"] == 0
+        assert "stats" in result
+        assert result["stats"]["papers_found"] == 0
         mock_conn.close.assert_called_once()
 
     @patch("api.deliver.get_connection")

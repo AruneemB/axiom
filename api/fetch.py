@@ -56,7 +56,17 @@ def run_fetch(cfg) -> dict:
     # papers.extend(rss_papers)
 
     if not papers:
-        return {"fetched": 0, "stored": 0, "skipped": 0}
+        return {
+            "fetched": 0,
+            "stored": 0,
+            "skipped": 0,
+            "details": {
+                "skipped": {
+                    "already_in_db": 0,
+                    "below_relevance_threshold": 0
+                }
+            }
+        }
 
     relevance_filter = RelevanceFilter(
         topics=cfg.allowed_topics,
@@ -67,6 +77,10 @@ def run_fetch(cfg) -> dict:
     )
 
     stored, skipped = 0, 0
+    skipped_details = {
+        "already_in_db": 0,
+        "below_relevance_threshold": 0
+    }
     conn = get_connection(cfg.database_url)
 
     with conn.cursor() as cur:
@@ -75,6 +89,7 @@ def run_fetch(cfg) -> dict:
             cur.execute("SELECT 1 FROM papers WHERE id = %s", (paper.id,))
             if cur.fetchone():
                 skipped += 1
+                skipped_details["already_in_db"] += 1
                 continue
 
             score, keyword_hits = relevance_filter.score(paper.abstract)
@@ -89,6 +104,7 @@ def run_fetch(cfg) -> dict:
                      score, keyword_hits, "below_relevance_threshold"),
                 )
                 skipped += 1
+                skipped_details["below_relevance_threshold"] += 1
             else:
                 cur.execute(
                     """INSERT INTO papers (id, title, abstract, authors, categories,
@@ -104,4 +120,11 @@ def run_fetch(cfg) -> dict:
             conn.commit()
 
     conn.close()
-    return {"fetched": len(papers), "stored": stored, "skipped": skipped}
+    return {
+        "fetched": len(papers),
+        "stored": stored,
+        "skipped": skipped,
+        "details": {
+            "skipped": skipped_details
+        }
+    }

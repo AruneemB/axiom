@@ -287,7 +287,17 @@ class TestRunFetchEmpty:
     def test_no_papers_returns_zeros(self, mock_fetch):
         cfg = _make_config()
         result = run_fetch(cfg)
-        assert result == {"fetched": 0, "stored": 0, "skipped": 0}
+        assert result == {
+            "fetched": 0,
+            "stored": 0,
+            "skipped": 0,
+            "details": {
+                "skipped": {
+                    "already_in_db": 0,
+                    "below_relevance_threshold": 0
+                }
+            }
+        }
 
 
 class TestRunFetchDuplicateSkip:
