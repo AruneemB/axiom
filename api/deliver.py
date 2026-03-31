@@ -18,7 +18,9 @@ class handler(BaseHTTPRequestHandler):
         from urllib.parse import urlparse, parse_qs
         params = parse_qs(urlparse(self.path).query)
         auth_header = self.headers.get("Authorization", "")
-        bearer_token = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else None
+        bearer_token = None
+        if auth_header.lower().startswith("bearer "):
+            bearer_token = auth_header[7:].strip()
         key_param = params.get("key", [None])[0]
 
         if cfg.cron_secret not in (bearer_token, key_param):

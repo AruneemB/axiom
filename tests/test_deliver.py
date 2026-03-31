@@ -121,6 +121,16 @@ class TestDeliverHandlerAuth:
 
     @patch("api.deliver.load_config")
     @patch("api.deliver.run_deliver")
+    def test_accepts_lowercase_bearer_token(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        mock_run.return_value = {"sent": 0, "reason": "no papers or no active users"}
+        h = _make_handler_mock(headers={"Authorization": "bearer my-secret"})
+        h.path = "/api/deliver"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(200)
+
+    @patch("api.deliver.load_config")
+    @patch("api.deliver.run_deliver")
     def test_rejects_invalid_bearer_token(self, mock_run, mock_cfg):
         mock_cfg.return_value = _make_config()
         h = _make_handler_mock(headers={"Authorization": "Bearer wrong-secret"})
@@ -157,17 +167,6 @@ class TestDeliverHandlerAuth:
         """'Bearer ' prefix with no actual token is rejected."""
         mock_cfg.return_value = _make_config()
         h = _make_handler_mock(headers={"Authorization": "Bearer "})
-        h.path = "/api/deliver"
-        handler.do_GET(h)
-        h.send_response.assert_called_with(401)
-        mock_run.assert_not_called()
-
-    @patch("api.deliver.load_config")
-    @patch("api.deliver.run_deliver")
-    def test_rejects_lowercase_bearer(self, mock_run, mock_cfg):
-        """Lowercase 'bearer' prefix is not treated as Bearer auth."""
-        mock_cfg.return_value = _make_config()
-        h = _make_handler_mock(headers={"Authorization": "bearer my-secret"})
         h.path = "/api/deliver"
         handler.do_GET(h)
         h.send_response.assert_called_with(401)
