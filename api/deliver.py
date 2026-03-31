@@ -102,6 +102,7 @@ def run_deliver(cfg) -> dict:
             model=model,
             api_key=cfg.openrouter_api_key,
             fallback_model=cfg.fallback_model,
+            timeout=cfg.openrouter_timeout,
         )
 
         if idea is None:

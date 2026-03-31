@@ -50,6 +50,7 @@ def _make_config(**overrides):
         "dedup_similarity_max": 0.80,
         "embedding_model": "openai/text-embedding-3-small",
         "max_ideas_per_day": 2,
+        "openrouter_timeout": 90,
     }
     defaults.update(overrides)
     cfg = MagicMock()
