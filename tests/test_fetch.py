@@ -53,6 +53,7 @@ def _make_config(**overrides):
         "dedup_similarity_max": 0.80,
         "embedding_model": "openai/text-embedding-3-small",
         "max_ideas_per_day": 2,
+        "openrouter_timeout": 90,
     }
     defaults.update(overrides)
     cfg = MagicMock()
@@ -134,6 +135,17 @@ class TestHandlerCronAuth:
 
     @patch("api.fetch.load_config")
     @patch("api.fetch.run_fetch")
+    def test_accepts_lowercase_bearer_token(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        mock_run.return_value = {"fetched": 0, "stored": 0, "skipped": 0}
+        h = _make_handler_mock(headers={"Authorization": "bearer my-secret"})
+        h.path = "/api/fetch"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(200)
+        mock_run.assert_called_once()
+
+    @patch("api.fetch.load_config")
+    @patch("api.fetch.run_fetch")
     def test_rejects_invalid_bearer_token(self, mock_run, mock_cfg):
         mock_cfg.return_value = _make_config()
         h = _make_handler_mock(headers={"Authorization": "Bearer wrong-secret"})
@@ -169,17 +181,6 @@ class TestHandlerCronAuth:
         """'Bearer ' prefix with no actual token is rejected."""
         mock_cfg.return_value = _make_config()
         h = _make_handler_mock(headers={"Authorization": "Bearer "})
-        h.path = "/api/fetch"
-        handler.do_GET(h)
-        h.send_response.assert_called_with(401)
-        mock_run.assert_not_called()
-
-    @patch("api.fetch.load_config")
-    @patch("api.fetch.run_fetch")
-    def test_rejects_lowercase_bearer(self, mock_run, mock_cfg):
-        """Lowercase 'bearer' prefix is not treated as Bearer auth."""
-        mock_cfg.return_value = _make_config()
-        h = _make_handler_mock(headers={"Authorization": "bearer my-secret"})
         h.path = "/api/fetch"
         handler.do_GET(h)
         h.send_response.assert_called_with(401)
@@ -287,7 +288,17 @@ class TestRunFetchEmpty:
     def test_no_papers_returns_zeros(self, mock_fetch):
         cfg = _make_config()
         result = run_fetch(cfg)
-        assert result == {"fetched": 0, "stored": 0, "skipped": 0}
+        assert result == {
+            "fetched": 0,
+            "stored": 0,
+            "skipped": 0,
+            "details": {
+                "skipped": {
+                    "already_in_db": 0,
+                    "below_relevance_threshold": 0
+                }
+            }
+        }
 
 
 class TestRunFetchDuplicateSkip:

@@ -23,6 +23,7 @@ class Config:
     dedup_similarity_max: float
     embedding_model: str
     max_ideas_per_day: int
+    openrouter_timeout: int
 
 
 def load_config() -> Config:
@@ -47,9 +48,10 @@ def load_config() -> Config:
         arxiv_categories=os.getenv("ARXIV_CATEGORIES", "q-fin.PM,q-fin.ST").split(","),
         arxiv_max_results=int(os.getenv("ARXIV_MAX_RESULTS", "50")),
         allowed_topics=require("ALLOWED_TOPICS").split(","),
-        relevance_threshold=float(os.getenv("RELEVANCE_THRESHOLD", "0.65")),
-        quality_gate_min=int(os.getenv("QUALITY_GATE_MIN", "13")),
+        relevance_threshold=float(os.getenv("RELEVANCE_THRESHOLD", "0.55")),
+        quality_gate_min=int(os.getenv("QUALITY_GATE_MIN", "11")),
         dedup_similarity_max=float(os.getenv("DEDUP_SIMILARITY_MAX", "0.80")),
         embedding_model=os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small"),
         max_ideas_per_day=int(os.getenv("MAX_IDEAS_PER_DAY", "2")),
+        openrouter_timeout=int(os.getenv("OPENROUTER_TIMEOUT", "90")),
     )

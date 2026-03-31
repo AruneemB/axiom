@@ -50,6 +50,7 @@ def _make_config(**overrides):
         "dedup_similarity_max": 0.80,
         "embedding_model": "openai/text-embedding-3-small",
         "max_ideas_per_day": 2,
+        "openrouter_timeout": 90,
     }
     defaults.update(overrides)
     cfg = MagicMock()
@@ -121,6 +122,16 @@ class TestDeliverHandlerAuth:
 
     @patch("api.deliver.load_config")
     @patch("api.deliver.run_deliver")
+    def test_accepts_lowercase_bearer_token(self, mock_run, mock_cfg):
+        mock_cfg.return_value = _make_config()
+        mock_run.return_value = {"sent": 0, "reason": "no papers or no active users"}
+        h = _make_handler_mock(headers={"Authorization": "bearer my-secret"})
+        h.path = "/api/deliver"
+        handler.do_GET(h)
+        h.send_response.assert_called_with(200)
+
+    @patch("api.deliver.load_config")
+    @patch("api.deliver.run_deliver")
     def test_rejects_invalid_bearer_token(self, mock_run, mock_cfg):
         mock_cfg.return_value = _make_config()
         h = _make_handler_mock(headers={"Authorization": "Bearer wrong-secret"})
@@ -157,17 +168,6 @@ class TestDeliverHandlerAuth:
         """'Bearer ' prefix with no actual token is rejected."""
         mock_cfg.return_value = _make_config()
         h = _make_handler_mock(headers={"Authorization": "Bearer "})
-        h.path = "/api/deliver"
-        handler.do_GET(h)
-        h.send_response.assert_called_with(401)
-        mock_run.assert_not_called()
-
-    @patch("api.deliver.load_config")
-    @patch("api.deliver.run_deliver")
-    def test_rejects_lowercase_bearer(self, mock_run, mock_cfg):
-        """Lowercase 'bearer' prefix is not treated as Bearer auth."""
-        mock_cfg.return_value = _make_config()
-        h = _make_handler_mock(headers={"Authorization": "bearer my-secret"})
         h.path = "/api/deliver"
         handler.do_GET(h)
         h.send_response.assert_called_with(401)
@@ -243,6 +243,8 @@ class TestRunDeliverEarlyExit:
         cfg = _make_config()
         result = run_deliver(cfg)
         assert result["sent"] == 0
+        assert "stats" in result
+        assert result["stats"]["papers_found"] == 0
         mock_conn.close.assert_called_once()
 
     @patch("api.deliver.get_connection")

@@ -18,7 +18,9 @@ class handler(BaseHTTPRequestHandler):
         from urllib.parse import urlparse, parse_qs
         params = parse_qs(urlparse(self.path).query)
         auth_header = self.headers.get("Authorization", "")
-        bearer_token = auth_header.removeprefix("Bearer ").strip() if auth_header.startswith("Bearer ") else None
+        bearer_token = None
+        if auth_header.lower().startswith("bearer "):
+            bearer_token = auth_header[7:].strip()
         key_param = params.get("key", [None])[0]
 
         if cfg.cron_secret not in (bearer_token, key_param):
@@ -44,6 +46,11 @@ def run_deliver(cfg) -> dict:
     conn = get_connection(cfg.database_url)
     sent_count = 0
     processed_papers = []
+    skipped_details = {
+        "llm_parse_error": 0,
+        "below_quality_gate": 0,
+        "duplicate_idea": 0
+    }
 
     with conn.cursor() as cur:
         # Fetch top unprocessed papers by relevance score
@@ -67,7 +74,14 @@ def run_deliver(cfg) -> dict:
 
     if not papers or not active_users:
         conn.close()
-        return {"sent": 0, "reason": "no papers or no active users"}
+        return {
+            "sent": 0,
+            "reason": "no papers or no active users",
+            "stats": {
+                "papers_found": len(papers),
+                "active_users": len(active_users)
+            }
+        }
 
     # Select model (deep-dive on configured day)
     model = cfg.deepdive_model if datetime.utcnow().weekday() == cfg.deepdive_day \
@@ -88,15 +102,18 @@ def run_deliver(cfg) -> dict:
             model=model,
             api_key=cfg.openrouter_api_key,
             fallback_model=cfg.fallback_model,
+            timeout=cfg.openrouter_timeout,
         )
 
         if idea is None:
             mark_processed(conn, paper_id, skip_reason="llm_parse_error")
+            skipped_details["llm_parse_error"] += 1
             continue
 
         # Quality gate
         if idea["novelty_score"] + idea["feasibility_score"] < cfg.quality_gate_min:
             mark_processed(conn, paper_id, skip_reason="below_quality_gate")
+            skipped_details["below_quality_gate"] += 1
             continue
 
         # Dedup check against previously sent ideas
@@ -107,6 +124,7 @@ def run_deliver(cfg) -> dict:
         )
         if is_duplicate(conn, idea_embedding, cfg.dedup_similarity_max):
             mark_processed(conn, paper_id, skip_reason="duplicate_idea")
+            skipped_details["duplicate_idea"] += 1
             continue
 
         # Persist idea
@@ -128,7 +146,14 @@ def run_deliver(cfg) -> dict:
         processed_papers.append(paper_id)
 
     conn.close()
-    return {"sent": sent_count, "papers": processed_papers, "model": model}
+    return {
+        "sent": sent_count,
+        "papers": processed_papers,
+        "model": model,
+        "details": {
+            "skipped": skipped_details
+        }
+    }
 
 
 def mark_processed(conn, paper_id: str, skip_reason: str = None):
