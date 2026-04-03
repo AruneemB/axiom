@@ -26,15 +26,23 @@ psql $DATABASE_URL -f migrations/003_add_topic_weights.sql
 psql $DATABASE_URL -f migrations/004_update_vector_dimensions.sql
 ```
 
-4. Seed the default topic weights:
+4. Topic weights are automatically synced:
+
+The `topic_weights` table is automatically populated from your `ALLOWED_TOPICS` environment variable whenever the fetch or spark endpoints are called. You don't need to manually seed topics.
+
+If you want to pre-populate topics before the first fetch, you can run:
+
+```bash
+python scripts/sync_topics.py
+```
+
+Or manually insert them:
 
 ```sql
+-- Example only - use your actual ALLOWED_TOPICS values
 INSERT INTO topic_weights (topic) VALUES
-  ('factor model'), ('momentum'), ('volatility forecasting'),
-  ('order book'), ('regime detection'), ('mean reversion'),
-  ('cross-sectional'), ('alpha decay'), ('market microstructure'),
-  ('alternative data'), ('options pricing'), ('liquidity'),
-  ('machine learning'), ('neural network'), ('reinforcement learning');
+  ('factor model'), ('momentum'), ('volatility forecasting')
+ON CONFLICT (topic) DO NOTHING;
 ```
 
 5. Insert yourself as an authorized user:
