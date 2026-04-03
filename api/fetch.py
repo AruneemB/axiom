@@ -6,6 +6,7 @@ from lib.arxiv import fetch_recent_papers
 from lib.rss import fetch_rss_papers
 from lib.filter import RelevanceFilter
 from lib.db import get_connection
+from scripts.sync_topics import sync_topic_weights
 
 
 class handler(BaseHTTPRequestHandler):
@@ -82,6 +83,9 @@ def run_fetch(cfg) -> dict:
         "below_relevance_threshold": 0
     }
     conn = get_connection(cfg.database_url)
+
+    # Ensure all topics from ALLOWED_TOPICS exist in topic_weights
+    sync_topic_weights(conn, cfg.allowed_topics)
 
     with conn.cursor() as cur:
         for paper in papers:
