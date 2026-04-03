@@ -7,6 +7,13 @@ def _sanitize(text: str) -> str:
     return text.encode("utf-8", errors="surrogatepass").decode("utf-8", errors="replace")
 
 
+def esc(s: str) -> str:
+    """Escape reserved MarkdownV2 characters."""
+    for c in r"\_*[]()~`>#+-=|{}.!":
+        s = s.replace(c, f"\\{c}")
+    return s
+
+
 def send_message(chat_id: int, text: str, bot_token: str, parse_mode: str = None):
     text = _sanitize(text)
     payload = {"chat_id": chat_id, "text": text}
@@ -28,11 +35,6 @@ def send_idea_message(
     idea: dict,
     bot_token: str,
 ):
-    def esc(s: str) -> str:
-        for c in r"\_*[]()~`>#+-=|{}.!":
-            s = s.replace(c, f"\\{c}")
-        return s
-
     n = idea["novelty_score"]
     f = idea["feasibility_score"]
     score_bar = "\u2588" * n + "\u2591" * (10 - n)

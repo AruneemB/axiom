@@ -288,7 +288,7 @@ class TestHandleTopics:
         mock_send.assert_called_once()
         text = mock_send.call_args[0][1]
         assert "momentum" in text
-        assert "2.50" in text
+        assert r"2\.50" in text  # Escaped for MarkdownV2
 
 
 class TestHandlePause:

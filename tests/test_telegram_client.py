@@ -5,6 +5,7 @@ import pytest
 from lib.telegram_client import (
     TELEGRAM_BASE,
     _sanitize,
+    esc,
     send_message,
     send_idea_message,
     register_webhook,
