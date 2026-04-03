@@ -9,6 +9,7 @@ from lib.embeddings import embed_text
 from lib.telegram_client import send_message, send_idea_message
 from lib.arxiv import fetch_recent_papers
 from lib.filter import RelevanceFilter
+from scripts.sync_topics import sync_topic_weights
 
 
 class handler(BaseHTTPRequestHandler):
@@ -28,6 +29,8 @@ class handler(BaseHTTPRequestHandler):
 
         conn = get_connection(cfg.database_url)
         try:
+            # Ensure all topics from ALLOWED_TOPICS exist in topic_weights
+            sync_topic_weights(conn, cfg.allowed_topics)
             result = run_spark(user_id, chat_id, conn, cfg)
             self._respond(200, result)
         except Exception as e:
