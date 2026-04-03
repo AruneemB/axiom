@@ -7,7 +7,7 @@ import httpx
 
 from lib.config import load_config
 from lib.db import get_connection
-from lib.telegram_client import send_message
+from lib.telegram_client import send_message, esc
 
 COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback", "/spark"}
 
@@ -180,7 +180,7 @@ def handle_topics(chat_id: int, conn, cfg):
         cur.execute("SELECT topic, weight FROM topic_weights ORDER BY weight DESC LIMIT 15")
         rows = cur.fetchall()
 
-    lines = [f"`{row['topic']}` — {row['weight']:.2f}" for row in rows]
+    lines = [f"`{esc(row['topic'])}` — {esc(f'{row["weight"]:.2f}')}" for row in rows]
     send_message(
         chat_id,
         "*Topic weights*\n\n" + "\n".join(lines),
