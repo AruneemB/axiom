@@ -1,5 +1,4 @@
 import json
-import random
 from http.server import BaseHTTPRequestHandler
 
 from lib.config import load_config
@@ -120,6 +119,23 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
     if paper:
         return paper
 
+    # Tier 1.5: Papers processed by deliver but not yet sparked on-demand
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT p.id, p.title, p.abstract, p.url
+               FROM papers p
+               WHERE p.processed = TRUE AND p.skipped = FALSE
+                 AND NOT EXISTS (
+                   SELECT 1 FROM ideas i
+                   WHERE i.paper_id = p.id AND i.on_demand_by IS NOT NULL
+                 )
+               ORDER BY p.relevance_score DESC
+               LIMIT 1"""
+        )
+        paper = cur.fetchone()
+    if paper:
+        return paper
+
     # Tier 2: Expanded arXiv fetch (7-day window)
     arxiv_papers = fetch_recent_papers(
         categories=cfg.arxiv_categories,
@@ -127,11 +143,20 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
         hours=168,
     )
     if arxiv_papers:
-        # Exclude papers that were already processed (used for an idea)
-        # But allow re-evaluation of skipped papers in case topics changed
+        # Exclude papers that already have an on-demand idea
+        # But allow re-evaluation of skipped papers and delivered papers
         with conn.cursor() as cur:
             arxiv_ids = [p.id for p in arxiv_papers]
-            cur.execute("SELECT id FROM papers WHERE id = ANY(%s) AND processed = TRUE", (arxiv_ids,))
+            cur.execute(
+                """SELECT p.id FROM papers p
+                   WHERE p.id = ANY(%s)
+                     AND (p.processed = TRUE
+                          AND EXISTS (
+                            SELECT 1 FROM ideas i
+                            WHERE i.paper_id = p.id AND i.on_demand_by IS NOT NULL
+                          ))""",
+                (arxiv_ids,),
+            )
             processed_ids = {row["id"] for row in cur.fetchall()}
         arxiv_papers = [p for p in arxiv_papers if p.id not in processed_ids]
 
