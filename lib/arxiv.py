@@ -28,11 +28,19 @@ def fetch_recent_papers(categories: list[str], max_results: int = 50, hours: int
         "sortOrder": "descending",
     }
 
-    resp = httpx.get(ARXIV_API, params=params, timeout=20)
-    resp.raise_for_status()
+    try:
+        resp = httpx.get(ARXIV_API, params=params, timeout=20)
+        resp.raise_for_status()
+    except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.ConnectError) as e:
+        print(f"[arxiv] fetch failed: {e}")
+        return []
 
     ns = {"atom": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
-    root = ET.fromstring(resp.text)
+    try:
+        root = ET.fromstring(resp.text)
+    except ET.ParseError as e:
+        print(f"[arxiv] XML parse failed: {e}")
+        return []
     papers = []
 
     for entry in root.findall("atom:entry", ns):

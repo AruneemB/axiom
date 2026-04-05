@@ -73,15 +73,19 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
         send_message(chat_id, msg, cfg.telegram_bot_token)
         return {"ok": False, "reason": "llm_failure"}
 
-    if idea["novelty_score"] + idea["feasibility_score"] < 10:
+    if idea["novelty_score"] + idea["feasibility_score"] < cfg.quality_gate_min:
         send_message(chat_id, "The idea didn't pass the quality gate. Try again later.", cfg.telegram_bot_token)
         return {"ok": False, "reason": "below_quality_gate"}
 
-    idea_embedding = embed_text(
-        idea["hypothesis"] + " " + idea["method"],
-        model=cfg.embedding_model,
-        api_key=cfg.openrouter_api_key,
-    )
+    try:
+        idea_embedding = embed_text(
+            idea["hypothesis"] + " " + idea["method"],
+            model=cfg.embedding_model,
+            api_key=cfg.openrouter_api_key,
+        )
+    except Exception as e:
+        print(f"[spark] embedding failed, storing without: {e}")
+        idea_embedding = None
 
     idea_id = _store_spark_idea(conn, paper["id"], idea, idea_embedding, user_id)
 
@@ -177,34 +181,67 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
                 "url": best_paper.url,
             }
 
-    # Tier 3: Random high-scoring archived paper (not yet used)
+    # Tier 3: Re-evaluate skipped papers in DB against current topics
     with conn.cursor() as cur:
         cur.execute(
             """SELECT id, title, abstract, url
                FROM papers
-               WHERE NOT skipped AND NOT processed
-               ORDER BY relevance_score DESC
-               LIMIT 10"""
+               WHERE skipped = TRUE
+               ORDER BY published_at DESC
+               LIMIT 50"""
         )
-        top_papers = cur.fetchall()
-    if top_papers:
-        return random.choice(top_papers)
+        skipped_papers = cur.fetchall()
+
+    if skipped_papers:
+        relevance_filter = RelevanceFilter(
+            topics=cfg.allowed_topics,
+            threshold=cfg.relevance_threshold,
+        )
+        scored = []
+        for p in skipped_papers:
+            score, keyword_hits = relevance_filter.score(p["abstract"])
+            if keyword_hits:
+                scored.append((score, keyword_hits, p))
+        if scored:
+            scored.sort(key=lambda x: x[0], reverse=True)
+            best_score, best_hits, best_paper = scored[0]
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE papers
+                       SET relevance_score = %s, keyword_hits = %s,
+                           skipped = FALSE, skip_reason = NULL
+                       WHERE id = %s""",
+                    (best_score, best_hits, best_paper["id"]),
+                )
+                conn.commit()
+            return best_paper
 
     # Tier 4: Nothing found
     return None
 
 
-def _store_spark_idea(conn, paper_id: str, idea: dict, embedding: list[float], user_id: int) -> int:
+def _store_spark_idea(conn, paper_id: str, idea: dict, embedding: list[float] | None, user_id: int) -> int:
     with conn.cursor() as cur:
-        cur.execute(
-            """INSERT INTO ideas
-               (paper_id, hypothesis, method, dataset,
-                novelty_score, feasibility_score, embedding, sent_at, on_demand_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s::vector,NOW(),%s)
-               RETURNING id""",
-            (paper_id, idea["hypothesis"], idea["method"], idea["dataset"],
-             idea["novelty_score"], idea["feasibility_score"], embedding, user_id),
-        )
+        if embedding is not None:
+            cur.execute(
+                """INSERT INTO ideas
+                   (paper_id, hypothesis, method, dataset,
+                    novelty_score, feasibility_score, embedding, sent_at, on_demand_by)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s::vector,NOW(),%s)
+                   RETURNING id""",
+                (paper_id, idea["hypothesis"], idea["method"], idea["dataset"],
+                 idea["novelty_score"], idea["feasibility_score"], embedding, user_id),
+            )
+        else:
+            cur.execute(
+                """INSERT INTO ideas
+                   (paper_id, hypothesis, method, dataset,
+                    novelty_score, feasibility_score, sent_at, on_demand_by)
+                   VALUES (%s,%s,%s,%s,%s,%s,NOW(),%s)
+                   RETURNING id""",
+                (paper_id, idea["hypothesis"], idea["method"], idea["dataset"],
+                 idea["novelty_score"], idea["feasibility_score"], user_id),
+            )
         idea_id = cur.fetchone()["id"]
         conn.commit()
     return idea_id
