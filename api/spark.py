@@ -123,12 +123,13 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
         hours=168,
     )
     if arxiv_papers:
-        # Exclude papers already in our DB to ensure diversity
+        # Exclude papers that were already processed (used for an idea)
+        # But allow re-evaluation of skipped papers in case topics changed
         with conn.cursor() as cur:
             arxiv_ids = [p.id for p in arxiv_papers]
-            cur.execute("SELECT id FROM papers WHERE id = ANY(%s)", (arxiv_ids,))
-            existing_ids = {row["id"] for row in cur.fetchall()}
-        arxiv_papers = [p for p in arxiv_papers if p.id not in existing_ids]
+            cur.execute("SELECT id FROM papers WHERE id = ANY(%s) AND processed = TRUE", (arxiv_ids,))
+            processed_ids = {row["id"] for row in cur.fetchall()}
+        arxiv_papers = [p for p in arxiv_papers if p.id not in processed_ids]
 
     if arxiv_papers:
         # Keyword-only scoring (no embedding API) to avoid dimension mismatches
@@ -146,14 +147,28 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
             scored.sort(key=lambda x: x[0], reverse=True)
             best_score, best_hits, best_paper = scored[0]
             with conn.cursor() as cur:
-                cur.execute(
-                    """INSERT INTO papers (id, title, abstract, authors, categories,
-                       url, published_at, relevance_score, keyword_hits)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (best_paper.id, best_paper.title, best_paper.abstract,
-                     best_paper.authors, best_paper.categories, best_paper.url,
-                     best_paper.published_at, best_score, best_hits),
-                )
+                # Check if paper already exists (as skipped)
+                cur.execute("SELECT id FROM papers WHERE id = %s", (best_paper.id,))
+                exists = cur.fetchone()
+
+                if exists:
+                    # Update the skipped paper with new score and marks it as available
+                    cur.execute(
+                        """UPDATE papers
+                           SET relevance_score = %s, keyword_hits = %s, skipped = FALSE, skip_reason = NULL
+                           WHERE id = %s""",
+                        (best_score, best_hits, best_paper.id),
+                    )
+                else:
+                    # Insert new paper
+                    cur.execute(
+                        """INSERT INTO papers (id, title, abstract, authors, categories,
+                           url, published_at, relevance_score, keyword_hits)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        (best_paper.id, best_paper.title, best_paper.abstract,
+                         best_paper.authors, best_paper.categories, best_paper.url,
+                         best_paper.published_at, best_score, best_hits),
+                    )
                 conn.commit()
             return {
                 "id": best_paper.id,
