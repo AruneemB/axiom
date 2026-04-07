@@ -204,7 +204,18 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" "https://your-project.vercel.ap
 
 Your first idea should arrive in Telegram within 30 seconds.
 
-## 10. View the Dashboard
+## 10. Telegram Commands
+
+Once the bot is running and you have been granted access via `/start <BOT_PASSWORD>`, you can use these commands at any time:
+
+- `/spark` - Instantly generate a new hypothesis on-demand.
+- `/status` - Check how many papers were fetched and how many ideas are queued.
+- `/topics` - View the current weights of your active research topics.
+- `/feedback` - See a summary of your historical "Interesting" vs. "Skip" feedback.
+- `/pause` - Pause daily deliveries for 24 hours.
+- `/resume` - Resume daily deliveries immediately.
+
+## 11. View the Dashboard
 
 Axiom includes a public landing page and dashboard to monitor its status:
 

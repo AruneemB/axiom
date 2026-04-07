@@ -27,7 +27,8 @@ Axiom is a lightweight, zero-infrastructure pipeline designed for quantitative r
 - **Intelligent Filtering**: Combines traditional keyword matching with semantic vector similarity (`pgvector` + `sentence-transformers`).
 - **Research Synthesis**: Generates structured hypotheses, implementation methods, and data requirements using OpenRouter (Gemini/Claude).
 - **Interactive Feedback**: Personalize your research feed via simple "Interesting" or "Skip" buttons in Telegram.
-- **Dynamic Learning**: The system automatically updates topic weights based on your feedback to improve future signal quality.
+- **On-Demand Ideation**: Request a fresh hypothesis anytime via the `/spark` Telegram command.
+- **Dynamic Learning**: The system automatically updates topic weights based on your feedback (auto-synced with your configured topics) to improve future signal quality.
 - **Recent Papers Feed**: Click the Papers count on the landing page to reveal an expandable drawer showing the 20 most recent papers with arXiv links, category badges, and relative timestamps.
 - **Zero-Cost Operation**: Fully utilizes free tiers of Vercel, Neon, OpenRouter, and cron-job.org (~$0.03/month for high-volume API usage).
 
@@ -56,6 +57,9 @@ graph LR
     LLM --> Telegram(Telegram)
     Telegram --> Feedback(api/telegram)
     Feedback --> DB
+    Feedback -- "/spark" --> Spark(api/spark)
+    Spark --> DB
+    Spark --> LLM
 ```
 
 > **[Explore the detailed Architecture](ARCHITECTURE.md)**

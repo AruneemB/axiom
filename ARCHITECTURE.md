@@ -22,6 +22,11 @@ graph TD
     I -->|User Feedback| J(api/telegram)
     J -->|Update Weights| D
     J -->|Personalize| C
+    
+    I -->|/spark Command| J
+    J -->|Trigger| K(api/spark)
+    K -->|Query or Fetch| D
+    K -->|Paper Abstract| G
 ```
 
 ## Core Components
@@ -45,16 +50,23 @@ graph TD
     - "Interesting" (+1) increases the weight of matching keywords in the database.
     - "Skip" (-1) decreases weights.
 - **Personalization**: These weights are applied as multipliers during the next day's filtering stage, allowing Axiom to "learn" your research preferences over time.
+- **Command Handling**: Processes bot commands like `/spark` (which triggers `api/spark` for on-demand generation) and `/status`.
 
 ### 4. Data Layer (Neon Postgres)
 - **Relational Schema**: Manages papers, ideas, authorized users, and feedback.
 - **Vector Search**: Leverages `pgvector` for efficient cosine similarity searches in 384-dimensional space.
 - **Automated Migrations**: SQL-based schema management for easy deployment.
+- **Topic Auto-Sync**: The database automatically stays in sync with your configured `ALLOWED_TOPICS` environment variable whenever fetch or spark endpoints are called.
 
 ### 5. Landing Page & Public API (`api/status`, `api/papers`)
 - **Status Endpoint**: Returns live system health, total paper/idea counts, and last fetch/deliver timestamps.
 - **Papers Endpoint**: Returns the 20 most recent non-skipped papers (title, categories, arXiv URL, fetched timestamp). Unauthenticated, CORS-enabled.
 - **Interactive Landing Page**: A static page (`public/`) showing system status, a topic ticker, and an expandable papers drawer triggered by clicking the Papers count.
+
+### 6. On-Demand Synthesis (`api/spark`)
+- **Instant Generation**: Triggered by the `/spark` Telegram command to instantly generate a new hypothesis outside the daily schedule.
+- **Fallback Search Strategy**: Searches sequentially for: unprocessed papers, processed but un-sparked papers, a fresh 7-day arXiv fetch, and finally previously skipped papers.
+- **Auto-Syncing**: Guarantees the user's topics are synchronized to the database before processing.
 
 ## Security & Reliability
 - **Webhook Secrets**: Verifies Telegram payloads using HMAC constant-time comparison.
