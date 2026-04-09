@@ -14,12 +14,10 @@ CREATE TABLE conversation_sessions (
 );
 
 CREATE INDEX idx_sessions_user_active
-    ON conversation_sessions (user_id, expires_at DESC)
-    WHERE expires_at > NOW();
+    ON conversation_sessions (user_id, expires_at DESC);
 
 CREATE INDEX idx_sessions_expiration
-    ON conversation_sessions (expires_at)
-    WHERE expires_at > NOW();
+    ON conversation_sessions (expires_at);
 
 -- Conversation messages
 CREATE TABLE conversation_messages (
