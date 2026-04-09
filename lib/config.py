@@ -27,6 +27,7 @@ class Config:
 
     # Chat feature settings
     chat_enabled: bool
+    chat_model: str
     chat_context_window: int
     chat_max_messages_per_session: int
     chat_max_active_sessions_per_user: int
@@ -73,6 +74,7 @@ def load_config() -> Config:
 
         # Chat feature
         chat_enabled=os.getenv("CHAT_ENABLED", "true").lower() == "true",
+        chat_model=os.getenv("CHAT_MODEL", "google/gemini-flash-1.5"),
         chat_context_window=int(os.getenv("CHAT_CONTEXT_WINDOW", "10")),
         chat_max_messages_per_session=int(os.getenv("CHAT_MAX_MESSAGES_PER_SESSION", "20")),
         chat_max_active_sessions_per_user=int(os.getenv("CHAT_MAX_ACTIVE_SESSIONS_PER_USER", "5")),
