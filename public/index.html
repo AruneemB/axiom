@@ -32,11 +32,23 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
         <span>@axiom_aruneemb_bot</span>
       </a>
+      <button class="chat-toggle" id="chat-toggle" aria-expanded="false">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Ask Axiom</span>
+      </button>
     </div>
 
     <div class="papers-panel" id="papers-panel" hidden>
       <div class="papers-list" id="papers-list">
         <p class="papers-empty">Loading&hellip;</p>
+      </div>
+    </div>
+
+    <div class="chat-panel" id="chat-panel" hidden>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-row">
+        <textarea class="chat-input" id="chat-input" rows="1" placeholder="Ask about Axiom&hellip;"></textarea>
+        <button class="chat-send" id="chat-send">Send</button>
       </div>
     </div>
   </div>
@@ -48,5 +60,6 @@
   </div>
 
   <script src="/status.js"></script>
+  <script src="/chat.js"></script>
 </body>
 </html>
