@@ -1,15 +1,24 @@
 import json
 import hmac
 import os
+import re
 from http.server import BaseHTTPRequestHandler
+from datetime import datetime, timezone
 
 import httpx
+from github import GithubException
 
 from lib.config import load_config
 from lib.db import get_connection
 from lib.telegram_client import send_message, esc
+from lib.chat import (
+    get_or_create_session, get_conversation_context, store_message,
+    generate_chat_response, check_rate_limits
+)
+from lib.security_validator import validate_issue_content, detect_pii, sanitize_content
+from lib.github_client import create_issue, format_issue_body, generate_issue_title
 
-COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback", "/spark"}
+COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback", "/spark", "/chat", "/context", "/report"}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -101,6 +110,12 @@ def handle_message(msg: dict, conn, cfg):
         handle_feedback_summary(user_id, chat_id, conn, cfg)
     elif text == "/spark":
         handle_spark(user_id, chat_id, conn, cfg)
+    elif text.startswith("/chat"):
+        handle_chat(user_id, chat_id, text, conn, cfg)
+    elif text == "/context":
+        handle_context(user_id, chat_id, conn, cfg)
+    elif text.startswith("/report"):
+        handle_report(user_id, chat_id, text, msg, conn, cfg)
 
 
 def handle_callback(cb: dict, conn, cfg):
