@@ -28,6 +28,8 @@ Axiom is a lightweight, zero-infrastructure pipeline designed for quantitative r
 - **Research Synthesis**: Generates structured hypotheses, implementation methods, and data requirements using OpenRouter (Gemini/Claude).
 - **Interactive Feedback**: Personalize your research feed via simple "Interesting" or "Skip" buttons in Telegram.
 - **On-Demand Ideation**: Request a fresh hypothesis anytime via the `/spark` Telegram command.
+- **Research Chat**: Deep-dive into any generated idea using the `/chat` command to discuss implementation details with an AI quantitative expert.
+- **Issue Reporting**: Submit bug reports or feature requests directly from Telegram to GitHub via the `/report` command.
 - **Dynamic Learning**: The system automatically updates topic weights based on your feedback (auto-synced with your configured topics) to improve future signal quality.
 - **Recent Papers Feed**: Click the Papers count on the landing page to reveal an expandable drawer showing the 20 most recent papers with arXiv links, category badges, and relative timestamps.
 - **Zero-Cost Operation**: Fully utilizes free tiers of Vercel, Neon, OpenRouter, and cron-job.org (~$0.03/month for high-volume API usage).
@@ -40,7 +42,7 @@ Axiom is built for reliability and minimal maintenance.
 - **Infrastructure**: Vercel Serverless Functions + Vercel Cron.
 - **Database**: Neon Postgres with `pgvector` for semantic search.
 - **Intelligence**: OpenRouter (Gemini 1.5 Flash for daily runs, Claude 3.5 Haiku for Friday deep-dives).
-- **Embeddings**: Local `sentence-transformers` (`all-MiniLM-L6-v2`) at 384 dimensions.
+- **Embeddings**: OpenRouter (`openai/text-embedding-3-small`) at 1536 dimensions for high-precision semantic matching.
 
 > **[Read more about the Tech Stack](TECH-STACK.md)**
 
@@ -57,6 +59,8 @@ graph LR
     LLM --> Telegram(Telegram)
     Telegram --> Feedback(api/telegram)
     Feedback --> DB
+    Feedback -- "/chat" --> LLM
+    Feedback -- "/report" --> GitHub(GitHub Issues)
     Feedback -- "/spark" --> Spark(api/spark)
     Spark --> DB
     Spark --> LLM
