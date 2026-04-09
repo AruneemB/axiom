@@ -5,11 +5,7 @@
 .vscode/
 
 # Project docs (non-source)
-AXIOM-INSIGHTS.md
-AXIOM-SPEC.md
-AXIOM-ISSUES.md
-AXIOM-ROADMAP.md
-AXIOM-CHAT-AND-ISSUES.md
+docs-axiom/
 
 # Python
 __pycache__/
