@@ -440,7 +440,7 @@ def handle_report(user_id: int, chat_id: int, text: str, msg_obj: dict, conn, cf
         cur.execute("""
             INSERT INTO github_submissions (user_id, issue_number, issue_url, title, description, context_data)
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, (user_id, issue.number, issue.html_url, title, sanitized_description, json.dumps(context_data)))
+        """, (user_id, issue["number"], issue["html_url"], title, sanitized_description, json.dumps(context_data)))
         conn.commit()
 
-    send_message(chat_id, f"Issue #{issue.number} created successfully.\n{issue.html_url}", cfg.telegram_bot_token)
+    send_message(chat_id, f"Issue #{issue['number']} created successfully.\n{issue['html_url']}", cfg.telegram_bot_token)
