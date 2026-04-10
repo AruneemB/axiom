@@ -154,7 +154,7 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {"error": "config_error", "message": "Service is not configured."})
             return
 
-        model = os.getenv("CHAT_MODEL", "google/gemini-flash-1.5")
+        model = os.getenv("CHAT_MODEL", "google/gemini-2.5-flash")
         timeout = int(os.getenv("OPENROUTER_TIMEOUT", "30"))
         system_prompt = _SYSTEM_PROMPT
 
