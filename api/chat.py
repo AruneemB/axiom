@@ -1,9 +1,14 @@
 import json
 import os
+import sys
 import time
 from http.server import BaseHTTPRequestHandler
 
 import httpx
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from lib.db import get_connection
+from lib.embeddings import embed_text
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
