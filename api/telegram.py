@@ -1,15 +1,24 @@
 import json
 import hmac
 import os
+import re
 from http.server import BaseHTTPRequestHandler
+from datetime import datetime, timezone
 
 import httpx
+from github import GithubException
 
 from lib.config import load_config
 from lib.db import get_connection
 from lib.telegram_client import send_message, esc
+from lib.chat import (
+    get_or_create_session, get_conversation_context, store_message,
+    generate_chat_response, check_rate_limits
+)
+from lib.security_validator import validate_issue_content, detect_pii, sanitize_content
+from lib.github_client import create_issue, format_issue_body, generate_issue_title
 
-COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback", "/spark"}
+COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback", "/spark", "/chat", "/context", "/report"}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -101,6 +110,12 @@ def handle_message(msg: dict, conn, cfg):
         handle_feedback_summary(user_id, chat_id, conn, cfg)
     elif text == "/spark":
         handle_spark(user_id, chat_id, conn, cfg)
+    elif text.startswith("/chat"):
+        handle_chat(user_id, chat_id, text, conn, cfg)
+    elif text == "/context":
+        handle_context(user_id, chat_id, conn, cfg)
+    elif text.startswith("/report"):
+        handle_report(user_id, chat_id, text, msg, conn, cfg)
 
 
 def handle_callback(cb: dict, conn, cfg):
@@ -260,3 +275,172 @@ def handle_spark(user_id: int, chat_id: int, conn, cfg):
         )
     except Exception:
         pass  # Expected — we don't wait for the response
+
+
+def handle_chat(user_id: int, chat_id: int, text: str, conn, cfg):
+    if not cfg.chat_enabled:
+        send_message(chat_id, "Chat is currently disabled.", cfg.telegram_bot_token)
+        return
+
+    user_message = text.replace("/chat", "", 1).strip()
+    if not user_message:
+        usage = (
+            "Send /chat followed by your message to discuss your latest research idea.\n"
+            "Example: /chat How would I implement this with tick data?"
+        )
+        send_message(chat_id, usage, cfg.telegram_bot_token)
+        return
+
+    allowed, error_msg = check_rate_limits(user_id, None, conn)
+    if not allowed:
+        send_message(chat_id, error_msg, cfg.telegram_bot_token)
+        return
+
+    try:
+        session_id = get_or_create_session(user_id, None, None, conn)
+    except ValueError:
+        send_message(chat_id, "No research ideas available yet. Wait for your first delivery or use /spark.", cfg.telegram_bot_token)
+        return
+
+    context = get_conversation_context(session_id, cfg.chat_context_window, conn)
+    store_message(session_id, "user", user_message, 0, conn)
+
+    try:
+        response_text, tokens_used = generate_chat_response(
+            context, user_message, cfg.chat_model, cfg.openrouter_api_key, cfg.openrouter_timeout
+        )
+    except Exception:
+        send_message(chat_id, "Sorry, I couldn't generate a response. Please try again.", cfg.telegram_bot_token)
+        return
+
+    store_message(session_id, "assistant", response_text, tokens_used, conn)
+    send_message(chat_id, response_text, cfg.telegram_bot_token)
+
+
+def handle_context(user_id: int, chat_id: int, conn, cfg):
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT id, message_count
+            FROM conversation_sessions
+            WHERE user_id = %s AND expires_at > NOW()
+            ORDER BY updated_at DESC
+            LIMIT 1
+        """, (user_id,))
+        session = cur.fetchone()
+
+    if not session:
+        send_message(chat_id, "No active chat session. Start one with /chat.", cfg.telegram_bot_token)
+        return
+
+    context = get_conversation_context(session["id"], cfg.chat_context_window, conn)
+
+    msg = (
+        f"*Active Chat Context*\n\n"
+        f"Paper: {esc(context['title'])}\n"
+        f"Hypothesis: {esc(context['hypothesis'])}\n"
+        f"Method: {esc(context['method'])}\n"
+        f"Dataset: {esc(context['dataset'])}\n"
+        f"Scores: Novelty {context['novelty_score']}/10, Feasibility {context['feasibility_score']}/10\n"
+        f"Messages in session: {session['message_count']}"
+    )
+    send_message(chat_id, msg, cfg.telegram_bot_token, parse_mode="MarkdownV2")
+
+
+def handle_report(user_id: int, chat_id: int, text: str, msg_obj: dict, conn, cfg):
+    if not cfg.github_token:
+        send_message(chat_id, "GitHub integration is not configured.", cfg.telegram_bot_token)
+        return
+
+    description = text.replace("/report", "", 1).strip()
+    if not description:
+        usage = (
+            "Send /report followed by your issue description.\n"
+            "Example: /report The novelty scores seem inflated for NLP papers"
+        )
+        send_message(chat_id, usage, cfg.telegram_bot_token)
+        return
+
+    # Daily rate limit
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT COUNT(*) FROM github_submissions
+            WHERE user_id = %s AND submitted_at > CURRENT_DATE
+        """, (user_id,))
+        count = cur.fetchone()["count"]
+        if count >= cfg.max_github_issues_per_day:
+            send_message(chat_id, f"Daily issue limit reached ({cfg.max_github_issues_per_day}/day). Try again tomorrow.", cfg.telegram_bot_token)
+            return
+
+    # Security validation
+    is_valid, error_msg = validate_issue_content(description)
+    if not is_valid:
+        send_message(chat_id, error_msg, cfg.telegram_bot_token)
+        return
+
+    # PII check
+    pii_types = detect_pii(description)
+    if pii_types:
+        send_message(chat_id, f"Your submission contains personal information ({', '.join(pii_types)}). Please remove it and try again.", cfg.telegram_bot_token)
+        return
+
+    # Sanitize
+    sanitized_description = sanitize_content(description)
+
+    # AI-powered title generation
+    title = None
+    try:
+        # Prompt 05.8: Generate concise title via LLM
+        system_prompt = "Generate a concise GitHub issue title (under 70 chars) for this user report. Return only the title, nothing else."
+        headers = {"Authorization": f"Bearer {cfg.openrouter_api_key}", "Content-Type": "application/json"}
+        payload = {
+            "model": cfg.chat_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": sanitized_description}
+            ]
+        }
+        with httpx.Client(timeout=10) as client:
+            resp = client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+            resp.raise_for_status()
+            title = resp.json()["choices"][0]["message"]["content"].strip().strip('"')
+    except Exception:
+        title = generate_issue_title(sanitized_description)
+
+    # Build context
+    context_data = None
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT id FROM conversation_sessions
+            WHERE user_id = %s AND expires_at > NOW()
+            ORDER BY updated_at DESC LIMIT 1
+        """, (user_id,))
+        session = cur.fetchone()
+        if session:
+            context_data = get_conversation_context(session["id"], cfg.chat_context_window, conn)
+
+    user_info = {
+        "username": msg_obj.get("from", {}).get("username", "unknown"),
+        "user_id": user_id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+    body = format_issue_body(sanitized_description, context_data, user_info)
+
+    try:
+        issue = create_issue(
+            title, body, cfg.github_issue_labels, [],
+            cfg.github_repo_owner, cfg.github_repo_name, cfg.github_token
+        )
+    except GithubException:
+        send_message(chat_id, "Failed to create issue. Please try again later.", cfg.telegram_bot_token)
+        return
+
+    # Record submission
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO github_submissions (user_id, issue_number, issue_url, title, description, context_data)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (user_id, issue["number"], issue["html_url"], title, sanitized_description, json.dumps(context_data)))
+        conn.commit()
+
+    send_message(chat_id, f"Issue #{issue['number']} created successfully.\n{issue['html_url']}", cfg.telegram_bot_token)

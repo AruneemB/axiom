@@ -37,3 +37,4 @@ The following technologies power the Axiom pipeline, chosen for their zero-cost 
 - **Psycopg2**: Reliable PostgreSQL adapter for Python.
 - **Feedparser**: For processing Atom XML feeds from arXiv.
 - **Python-Dateutil**: Precise handling of international time zones and paper timestamps.
+- **PyGithub**: Integration with the GitHub REST API for issue management.

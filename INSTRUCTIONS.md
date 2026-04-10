@@ -111,6 +111,9 @@ vercel env add RELEVANCE_THRESHOLD
 vercel env add QUALITY_GATE_MIN
 vercel env add DEDUP_SIMILARITY_MAX
 vercel env add MAX_IDEAS_PER_DAY
+vercel env add GITHUB_TOKEN
+vercel env add GITHUB_REPO_OWNER
+vercel env add GITHUB_REPO_NAME
 ```
 
 Refer to `.env.example` for descriptions and sensible defaults for each variable.
@@ -212,6 +215,9 @@ Once the bot is running and you have been granted access via `/start <BOT_PASSWO
 - `/status` - Check how many papers were fetched and how many ideas are queued.
 - `/topics` - View the current weights of your active research topics.
 - `/feedback` - See a summary of your historical "Interesting" vs. "Skip" feedback.
+- `/chat <message>` - Discuss the latest research idea with an AI quant expert.
+- `/context` - View the paper and hypothesis details for the active chat session.
+- `/report <description>` - Submit a bug report or feature request to GitHub.
 - `/pause` - Pause daily deliveries for 24 hours.
 - `/resume` - Resume daily deliveries immediately.
 

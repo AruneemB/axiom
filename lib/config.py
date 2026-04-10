@@ -25,6 +25,23 @@ class Config:
     max_ideas_per_day: int
     openrouter_timeout: int
 
+    # Chat feature settings
+    chat_enabled: bool
+    chat_model: str
+    chat_context_window: int
+    chat_max_messages_per_session: int
+    chat_max_active_sessions_per_user: int
+    chat_max_messages_per_hour: int
+    chat_session_timeout_hours: int
+    chat_max_tokens_per_user_per_day: int
+
+    # GitHub integration settings
+    github_token: str
+    github_repo_owner: str
+    github_repo_name: str
+    github_issue_labels: list[str]
+    max_github_issues_per_day: int
+
 
 def load_config() -> Config:
     def require(key: str) -> str:
@@ -54,4 +71,21 @@ def load_config() -> Config:
         embedding_model=os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small"),
         max_ideas_per_day=int(os.getenv("MAX_IDEAS_PER_DAY", "2")),
         openrouter_timeout=int(os.getenv("OPENROUTER_TIMEOUT", "90")),
+
+        # Chat feature
+        chat_enabled=os.getenv("CHAT_ENABLED", "true").lower() == "true",
+        chat_model=os.getenv("CHAT_MODEL", "google/gemini-flash-1.5"),
+        chat_context_window=int(os.getenv("CHAT_CONTEXT_WINDOW", "10")),
+        chat_max_messages_per_session=int(os.getenv("CHAT_MAX_MESSAGES_PER_SESSION", "20")),
+        chat_max_active_sessions_per_user=int(os.getenv("CHAT_MAX_ACTIVE_SESSIONS_PER_USER", "5")),
+        chat_max_messages_per_hour=int(os.getenv("CHAT_MAX_MESSAGES_PER_HOUR", "20")),
+        chat_session_timeout_hours=int(os.getenv("CHAT_SESSION_TIMEOUT_HOURS", "2")),
+        chat_max_tokens_per_user_per_day=int(os.getenv("CHAT_MAX_TOKENS_PER_USER_PER_DAY", "50000")),
+
+        # GitHub integration
+        github_token=os.getenv("GITHUB_TOKEN", ""),
+        github_repo_owner=os.getenv("GITHUB_REPO_OWNER", "aruneemb"),
+        github_repo_name=os.getenv("GITHUB_REPO_NAME", "axiom"),
+        github_issue_labels=os.getenv("GITHUB_ISSUE_LABELS", "user-reported,needs-triage").split(","),
+        max_github_issues_per_day=int(os.getenv("MAX_GITHUB_ISSUES_PER_DAY", "3")),
     )

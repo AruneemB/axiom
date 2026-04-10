@@ -23,6 +23,14 @@ graph TD
     J -->|Update Weights| D
     J -->|Personalize| C
     
+    I -->|/chat Command| J
+    J -->|Interactive Session| L[lib/chat]
+    L -->|Contextual Prompt| G
+    
+    I -->|/report Command| J
+    J -->|Security Check| M[lib/security_validator]
+    M -->|Create Issue| N[GitHub API]
+    
     I -->|/spark Command| J
     J -->|Trigger| K(api/spark)
     K -->|Query or Fetch| D
@@ -35,7 +43,7 @@ graph TD
 - **arXiv Client**: Polls specific categories (e.g., `q-fin.PM`, `q-fin.ST`) for papers published in the last 36 hours.
 - **Two-Stage Filter**:
     - **Keyword Matching**: Fast pre-filtering against a dynamic list of topics.
-    - **Vector Similarity**: Uses `sentence-transformers` (`all-MiniLM-L6-v2`) to compare paper abstracts against a "Seed Corpus" of high-quality reference papers stored in `pgvector`.
+    - **Vector Similarity**: Uses OpenRouter embeddings (`openai/text-embedding-3-small`) to compare paper abstracts against a "Seed Corpus" of high-quality reference papers stored in `pgvector`.
 - **Deduplication**: Ensures the same paper isn't processed twice across overlapping windows.
 
 ### 2. Synthesis (`api/deliver`)
@@ -53,12 +61,22 @@ graph TD
 - **Command Handling**: Processes bot commands like `/spark` (which triggers `api/spark` for on-demand generation) and `/status`.
 
 ### 4. Data Layer (Neon Postgres)
-- **Relational Schema**: Manages papers, ideas, authorized users, and feedback.
-- **Vector Search**: Leverages `pgvector` for efficient cosine similarity searches in 384-dimensional space.
+- **Relational Schema**: Manages papers, ideas, authorized users, feedback, and **conversation sessions**.
+- **Vector Search**: Leverages `pgvector` for efficient cosine similarity searches in **1536-dimensional** space.
 - **Automated Migrations**: SQL-based schema management for easy deployment.
 - **Topic Auto-Sync**: The database automatically stays in sync with your configured `ALLOWED_TOPICS` environment variable whenever fetch or spark endpoints are called.
 
-### 5. Landing Page & Public API (`api/status`, `api/papers`)
+### 5. Research Chat (`lib/chat`)
+- **Session Management**: Tracks context across multiple messages per research idea.
+- **Contextual Retrieval**: Automatically injects paper abstracts and current idea details into the LLM context.
+- **Rate Limiting**: Multi-tier limits (per session, per hour, per day) to prevent API abuse.
+
+### 6. GitHub Issue Integration (`lib/github_client`)
+- **Security Validation**: A multi-layer pipeline (`lib/security_validator`) checks for profanity, PII, and injection attempts before submission.
+- **AI-Powered Triaging**: Uses LLMs to generate concise issue titles and format detailed markdown bodies with technical context.
+- **Traceability**: Submissions are linked to the specific research session and Telegram user for easy debugging.
+
+### 7. Landing Page & Public API (`api/status`, `api/papers`)
 - **Status Endpoint**: Returns live system health, total paper/idea counts, and last fetch/deliver timestamps.
 - **Papers Endpoint**: Returns the 20 most recent non-skipped papers (title, categories, arXiv URL, fetched timestamp). Unauthenticated, CORS-enabled.
 - **Interactive Landing Page**: A static page (`public/`) showing system status, a topic ticker, and an expandable papers drawer triggered by clicking the Papers count.

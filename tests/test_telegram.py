@@ -13,7 +13,7 @@ from api.telegram import (  # noqa: E402
     handler, handle_message, handle_callback,
     handle_status, handle_topics, handle_pause,
     handle_resume, handle_feedback_summary,
-    handle_spark,
+    handle_spark, handle_report, handle_chat, handle_context
 )
 
 
@@ -33,6 +33,12 @@ def _make_config(**overrides):
         "deepdive_model": "m2",
         "deepdive_day": 4,
         "cron_secret": "cron",
+        "chat_enabled": True,
+        "chat_model": "model",
+        "chat_context_window": 10,
+        "openrouter_timeout": 10,
+        "github_token": "gh_tok",
+        "max_github_issues_per_day": 3,
     }
     defaults.update(overrides)
     cfg = MagicMock()
@@ -360,6 +366,9 @@ class TestHandleFeedbackSummary:
 
 class TestMessageRouting:
 
+    @patch("api.telegram.handle_report")
+    @patch("api.telegram.handle_context")
+    @patch("api.telegram.handle_chat")
     @patch("api.telegram.handle_spark")
     @patch("api.telegram.handle_feedback_summary")
     @patch("api.telegram.handle_resume")
@@ -369,7 +378,7 @@ class TestMessageRouting:
     @patch("api.telegram.send_message")
     def test_routes_to_correct_handler(self, mock_send, mock_status, mock_topics,
                                         mock_pause, mock_resume, mock_feedback,
-                                        mock_spark):
+                                        mock_spark, mock_chat, mock_context, mock_report):
         cfg = _make_config()
         commands = {
             "/status": mock_status,
@@ -378,6 +387,9 @@ class TestMessageRouting:
             "/resume": mock_resume,
             "/feedback": mock_feedback,
             "/spark": mock_spark,
+            "/chat hello": mock_chat,
+            "/context": mock_context,
+            "/report bug": mock_report,
         }
         for cmd, expected_mock in commands.items():
             expected_mock.reset_mock()
@@ -450,3 +462,60 @@ class TestHandleSpark:
 
         # Should not raise
         handle_spark(123, 123, mock_conn, cfg)
+
+
+# ---------------------------------------------------------------------------
+# /report command
+# ---------------------------------------------------------------------------
+
+class TestHandleReport:
+
+    @patch("api.telegram.send_message")
+    @patch("api.telegram.validate_issue_content")
+    @patch("api.telegram.detect_pii")
+    @patch("api.telegram.sanitize_content")
+    @patch("api.telegram.create_issue")
+    @patch("api.telegram.get_conversation_context")
+    def test_handle_report_success(self, mock_context, mock_create, mock_sanitize,
+                                    mock_pii, mock_validate, mock_send):
+        mock_validate.return_value = (True, "")
+        mock_pii.return_value = []
+        mock_sanitize.return_value = "Sanitized description"
+        mock_create.return_value = {
+            "number": 1,
+            "html_url": "https://github.com/owner/repo/issues/1"
+        }
+        mock_context.return_value = {"paper_id": "123"}
+        
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.side_effect = [
+            {"count": 0}, # daily limit check
+            {"id": 1}     # session check for context
+        ]
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        
+        cfg = _make_config(github_token="gh_tok", max_github_issues_per_day=3)
+        msg = {"from": {"username": "user1"}}
+        
+        handle_report(123, 456, "/report Bug", msg, mock_conn, cfg)
+        
+        # Verify success message was sent
+        mock_send.assert_called()
+        assert "Issue #1 created successfully" in mock_send.call_args[0][1]
+
+    @patch("api.telegram.send_message")
+    def test_handle_report_blocks_pii(self, mock_send):
+        with patch("api.telegram.detect_pii", return_value=["email"]):
+            mock_cursor = MagicMock()
+            mock_cursor.fetchone.return_value = {"count": 0}
+            mock_conn = MagicMock()
+            mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+            mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+            
+            cfg = _make_config(github_token="gh_tok", max_github_issues_per_day=3)
+            handle_report(123, 456, "/report my email is a@b.com", {}, mock_conn, cfg)
+            
+            mock_send.assert_called()
+            assert "personal information" in mock_send.call_args[0][1]
