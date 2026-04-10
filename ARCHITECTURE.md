@@ -76,15 +76,17 @@ graph TD
 - **AI-Powered Triaging**: Uses LLMs to generate concise issue titles and format detailed markdown bodies with technical context.
 - **Traceability**: Submissions are linked to the specific research session and Telegram user for easy debugging.
 
-### 7. Landing Page & Public API (`api/status`, `api/papers`)
-- **Status Endpoint**: Returns live system health, total paper/idea counts, and last fetch/deliver timestamps.
-- **Papers Endpoint**: Returns the 20 most recent non-skipped papers (title, categories, arXiv URL, fetched timestamp). Unauthenticated, CORS-enabled.
-- **Interactive Landing Page**: A static page (`public/`) showing system status, a topic ticker, and an expandable papers drawer triggered by clicking the Papers count.
-
-### 6. On-Demand Synthesis (`api/spark`)
+### 7. On-Demand Synthesis (`api/spark`)
 - **Instant Generation**: Triggered by the `/spark` Telegram command to instantly generate a new hypothesis outside the daily schedule.
 - **Fallback Search Strategy**: Searches sequentially for: unprocessed papers, processed but un-sparked papers, a fresh 7-day arXiv fetch, and finally previously skipped papers.
 - **Auto-Syncing**: Guarantees the user's topics are synchronized to the database before processing.
+- **Resilience**: Retry logic with configurable fallback model (`FALLBACK_MODEL`) and tunable timeout (`OPENROUTER_TIMEOUT`).
+
+### 8. Landing Page & Public API (`api/status`, `api/papers`, `api/chat`)
+- **Status Endpoint**: Returns live system health, total paper/idea counts, and last fetch/deliver timestamps.
+- **Papers Endpoint**: Returns the 20 most recent non-skipped papers (title, categories, arXiv URL, fetched timestamp). Unauthenticated, CORS-enabled.
+- **Chat Endpoint** (`api/chat`): Stateless `POST` endpoint that answers visitor questions about the codebase and architecture. Calls OpenRouter with an inlined system prompt; no auth, no DB, no additional dependencies.
+- **Interactive Landing Page**: A static page (`public/`) showing system status, a topic ticker, an expandable papers drawer, and an "Ask Axiom" chatbot widget backed by `api/chat`.
 
 ## Security & Reliability
 - **Webhook Secrets**: Verifies Telegram payloads using HMAC constant-time comparison.
