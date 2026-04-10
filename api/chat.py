@@ -78,34 +78,6 @@ LANDING PAGE
 
 The landing page is a single dark glassmorphism card. It shows live system status, paper and idea counts, a collapsible drawer of recent papers, a link to the Telegram bot, a scrolling topic ticker at the bottom, and this chat widget. There is no user authentication on the landing page."""
 
-def _retrieve_doc_context(query: str, api_key: str, top_k: int = 4) -> str:
-    """Embed the query and return top-k doc chunks from pgvector as a formatted string."""
-    database_url = os.getenv("DATABASE_URL", "")
-    embedding_model = os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small")
-    if not database_url:
-        return ""
-    try:
-        vec = embed_text(query, embedding_model, api_key)
-        vec_str = "[" + ",".join(str(x) for x in vec) + "]"
-        conn = get_connection(database_url)
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT source, heading, content FROM doc_chunks "
-                    "ORDER BY embedding <=> %s::vector LIMIT %s",
-                    (vec_str, top_k),
-                )
-                rows = cur.fetchall()
-        finally:
-            conn.close()
-        if not rows:
-            return ""
-        parts = [f"[{r['source']} — {r['heading']}]\n{r['content']}" for r in rows]
-        return "\n\n---\n\n".join(parts)
-    except Exception:
-        return ""  # silent fallback — base system prompt is used instead
-
-
 _rate_limit: dict[str, tuple[int, float]] = {}
 _WINDOW_SECS = 60
 _MAX_REQUESTS = 30
@@ -189,16 +161,7 @@ class handler(BaseHTTPRequestHandler):
 
         model = os.getenv("CHAT_MODEL", "google/gemini-2.5-flash")
         timeout = int(os.getenv("OPENROUTER_TIMEOUT", "30"))
-        doc_context = _retrieve_doc_context(message, api_key)
-        if doc_context:
-            system_prompt = (
-                _SYSTEM_PROMPT
-                + "\n\n---\n\nRELEVANT DOCUMENTATION (use this to answer precisely — "
-                "prefer this over the summary above if there is a conflict):\n\n"
-                + doc_context
-            )
-        else:
-            system_prompt = _SYSTEM_PROMPT
+        system_prompt = _SYSTEM_PROMPT
 
         messages = [{"role": "system", "content": system_prompt}]
         for item in history:
