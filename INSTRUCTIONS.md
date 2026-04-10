@@ -226,9 +226,10 @@ Once the bot is running and you have been granted access via `/start <BOT_PASSWO
 Axiom includes a public landing page and dashboard to monitor its status:
 
 - **Dashboard**: `https://your-project.vercel.app/`
-- **Features**: Live status check, paper/idea counts, a streaming ticker of monitored quant topics, and an expandable recent papers drawer.
+- **Features**: Live status check, paper/idea counts, a streaming ticker of monitored quant topics, an expandable recent papers drawer, and an "Ask Axiom" chatbot widget.
 - **Papers drawer**: Click the Papers count to reveal the 20 most recent papers with arXiv links, category badges, and relative timestamps. The drawer lazy-loads from `/api/papers` on first open.
-- **Customization**: Edit `public/status.js` or `public/style.css` to further personalize the visual experience.
+- **Chatbot widget**: Click "Ask Axiom" to open a chat panel powered by `POST /api/chat`. Visitors can ask questions about the codebase and architecture without any login. Session history persists in `sessionStorage` for the duration of the browser session (15-message cap).
+- **Customization**: Edit `public/chat.js` or `public/style.css` to further personalize the visual experience.
 
 ---
 
