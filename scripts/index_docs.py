@@ -72,9 +72,10 @@ def chunk_markdown(source: str, text: str) -> list[dict]:
     """
     heading_re = re.compile(r"^(#{2,3})\s+(.+)$", re.MULTILINE)
 
-    # Find all heading positions
+    # Find all heading positions; prepend offset-0 so content before the first
+    # heading is captured as the "(introduction)" chunk.
     headings = [(m.start(), m.group(2).strip()) for m in heading_re.finditer(text)]
-    # Add a sentinel at the end
+    headings.insert(0, (0, None))
     headings.append((len(text), None))
 
     chunks = []
@@ -164,6 +165,12 @@ def index_docs():
         if (i + 1) % 10 == 0:
             print(f"  Embedded {i + 1} of {len(all_chunks)}...")
         time.sleep(EMBED_DELAY_SECS)
+
+    # Bail before touching the DB if every embedding failed — preserves existing data.
+    successful = sum(1 for c in all_chunks if c.get("embedding") is not None)
+    if successful == 0:
+        print("WARNING: No embeddings succeeded. Aborting to preserve existing doc_chunks data.")
+        sys.exit(1)
 
     # Store in DB (full re-index: clear then insert)
     print("\nStoring in doc_chunks table...")
