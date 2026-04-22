@@ -20,10 +20,9 @@ This guide walks you through deploying your own instance of Axiom from scratch. 
 3. Run the migrations in order (via the Neon SQL Editor or `psql`):
 
 ```bash
-psql $DATABASE_URL -f migrations/001_initial_schema.sql
-psql $DATABASE_URL -f migrations/002_add_pgvector.sql
-psql $DATABASE_URL -f migrations/003_add_topic_weights.sql
-psql $DATABASE_URL -f migrations/004_update_vector_dimensions.sql
+for migration in migrations/*.sql; do
+  psql "$DATABASE_URL" -f "$migration"
+done
 ```
 
 4. Topic weights are automatically synced:
@@ -45,14 +44,7 @@ INSERT INTO topic_weights (topic) VALUES
 ON CONFLICT (topic) DO NOTHING;
 ```
 
-5. Insert yourself as an authorized user:
-
-```sql
-INSERT INTO allowed_users (user_id, username, first_name)
-VALUES (YOUR_USER_ID, 'yourusername', 'YourName');
-```
-
-Replace `YOUR_USER_ID` with the numeric ID from step 1.4.
+5. That's it — no manual user seeding required. Your user ID (set in `TELEGRAM_CHAT_IDS`) is automatically inserted into `allowed_users` the first time the deliver cron runs, and any future user can self-register by sending `/start` to the bot.
 
 ## 3. Create an OpenRouter Account
 
@@ -74,7 +66,6 @@ Run this three times to produce values for:
 | Variable | Purpose |
 |---|---|
 | `TELEGRAM_WEBHOOK_SECRET` | Verifies incoming Telegram webhook requests |
-| `BOT_PASSWORD` | Password new users send via `/start` to gain access |
 | `CRON_SECRET` | Authenticates cron requests via `Authorization: Bearer` header (Vercel cron) or `?key=` query parameter (manual) |
 
 ## 5. Deploy to Vercel
@@ -97,7 +88,6 @@ vercel
 vercel env add TELEGRAM_BOT_TOKEN
 vercel env add TELEGRAM_WEBHOOK_SECRET
 vercel env add TELEGRAM_CHAT_IDS
-vercel env add BOT_PASSWORD
 vercel env add DATABASE_URL
 vercel env add OPENROUTER_API_KEY
 vercel env add DEFAULT_MODEL
@@ -209,7 +199,7 @@ Your first idea should arrive in Telegram within 30 seconds.
 
 ## 10. Telegram Commands
 
-Once the bot is running and you have been granted access via `/start <BOT_PASSWORD>`, you can use these commands at any time:
+Once the bot is running, send `/start` to register — no password required. You can then use these commands at any time:
 
 - `/spark` - Instantly generate a new hypothesis on-demand.
 - `/status` - Check how many papers were fetched and how many ideas are queued.
