@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS doc_chunks (
     indexed_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- HNSW handles incremental inserts correctly; ivfflat centroids degrade on an
+-- initially empty table and require REINDEX after each full load.
 CREATE INDEX IF NOT EXISTS doc_chunks_embedding_idx
-    ON doc_chunks USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 10);
+    ON doc_chunks USING hnsw (embedding vector_cosine_ops)
+    WITH (m = 16, ef_construction = 200);
