@@ -60,11 +60,8 @@ def handle_message(msg: dict, conn, cfg):
     if not user_id or not text:
         return
 
-    # Handle /start authentication
+    # Handle /start — open registration, no password required
     if text.startswith("/start"):
-        parts = text.split(maxsplit=1)
-        token = parts[1] if len(parts) > 1 else ""
-
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM allowed_users WHERE user_id = %s", (user_id,))
             already_allowed = cur.fetchone()
@@ -73,21 +70,18 @@ def handle_message(msg: dict, conn, cfg):
             send_message(chat_id, "You already have access to Axiom.", cfg.telegram_bot_token)
             return
 
-        if hmac.compare_digest(token, cfg.bot_password):
-            with conn.cursor() as cur:
-                cur.execute(
-                    """INSERT INTO allowed_users (user_id, username, first_name)
-                       VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
-                    (user_id, user.get("username"), user.get("first_name")),
-                )
-                conn.commit()
-            send_message(
-                chat_id,
-                "Access granted. Axiom will deliver your first ideas tomorrow morning.",
-                cfg.telegram_bot_token,
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO allowed_users (user_id, username, first_name)
+                   VALUES (%s, %s, %s) ON CONFLICT DO NOTHING""",
+                (user_id, user.get("username"), user.get("first_name")),
             )
-        else:
-            send_message(chat_id, "Invalid token.", cfg.telegram_bot_token)
+            conn.commit()
+        send_message(
+            chat_id,
+            "Welcome to Axiom. You'll receive your first research ideas tomorrow morning.",
+            cfg.telegram_bot_token,
+        )
         return
 
     # Layer 2: Whitelist check for all other messages
