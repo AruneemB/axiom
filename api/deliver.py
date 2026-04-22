@@ -78,6 +78,19 @@ def run_deliver(cfg) -> dict:
             )
             active_users = [row["user_id"] for row in cur.fetchall()]
 
+        # Ensure TELEGRAM_CHAT_IDS owners are always registered so delivery
+        # works even before they send /start for the first time.
+        if not active_users and cfg.telegram_chat_ids:
+            with conn.cursor() as cur:
+                for uid in cfg.telegram_chat_ids:
+                    cur.execute(
+                        "INSERT INTO allowed_users (user_id) VALUES (%s) ON CONFLICT DO NOTHING",
+                        (uid,),
+                    )
+                conn.commit()
+            active_users = list(cfg.telegram_chat_ids)
+            print(f"[deliver] bootstrapped {len(active_users)} owner(s) from TELEGRAM_CHAT_IDS")
+
         print(f"[deliver] found {len(papers)} papers, {len(active_users)} active users")
 
         if not papers or not active_users:
