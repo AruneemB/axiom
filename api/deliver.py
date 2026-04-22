@@ -88,8 +88,15 @@ def run_deliver(cfg) -> dict:
                         (uid,),
                     )
                 conn.commit()
-            active_users = list(cfg.telegram_chat_ids)
-            print(f"[deliver] bootstrapped {len(active_users)} owner(s) from TELEGRAM_CHAT_IDS")
+            print(f"[deliver] bootstrapped {len(cfg.telegram_chat_ids)} owner(s) from TELEGRAM_CHAT_IDS")
+            # Re-query so paused owners are still excluded
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT user_id FROM allowed_users
+                       WHERE NOT paused
+                       OR (paused AND pause_until < NOW())"""
+                )
+                active_users = [row["user_id"] for row in cur.fetchall()]
 
         print(f"[deliver] found {len(papers)} papers, {len(active_users)} active users")
 
