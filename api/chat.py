@@ -105,6 +105,7 @@ def _check_rate_limit(ip: str) -> bool:
 class handler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
+        """Handle CORS preflight requests."""
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
@@ -112,12 +113,14 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        """Route POST requests to _handle_post with top-level exception guard."""
         try:
             self._handle_post()
         except Exception:
             self._respond(500, {"error": "server_error", "message": "An unexpected error occurred."})
 
     def _handle_post(self):
+        """Validate input, optionally augment system prompt via RAG, and call the LLM."""
         try:
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length)) if length else {}
@@ -161,15 +164,17 @@ class handler(BaseHTTPRequestHandler):
 
         model = os.getenv("CHAT_MODEL", "google/gemini-2.5-flash")
         timeout = int(os.getenv("OPENROUTER_TIMEOUT", "30"))
+        # EMBEDDING_MODEL must match the model used in scripts/index_docs.py to produce
+        # vectors of the same dimension as doc_chunks.embedding (vector(1536)).
         embedding_model = os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small")
         database_url = os.getenv("DATABASE_URL", "")
 
         system_prompt = _SYSTEM_PROMPT
         if database_url:
+            conn = None
             try:
                 conn = get_connection(database_url)
                 chunks = retrieve_doc_chunks(message, conn, api_key, embedding_model)
-                conn.close()
                 if chunks:
                     context_block = "\n\n".join(
                         f"[{c['source']} / {c['heading']}]\n{c['content']}"
@@ -182,6 +187,9 @@ class handler(BaseHTTPRequestHandler):
                     )
             except Exception:
                 pass
+            finally:
+                if conn:
+                    conn.close()
 
         messages = [{"role": "system", "content": system_prompt}]
         for item in history:
@@ -215,6 +223,7 @@ class handler(BaseHTTPRequestHandler):
             self._respond(500, {"error": "llm_error", "message": "Failed to generate a response."})
 
     def _respond(self, status: int, body: dict):
+        """Serialise body as JSON and write a complete HTTP response."""
         payload = json.dumps(body).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -224,5 +233,6 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def log_message(self, format, *args):
+        """Suppress default BaseHTTPRequestHandler access logging."""
         pass
      
