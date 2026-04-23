@@ -157,12 +157,12 @@ class TestRetrieveDocChunks:
         assert args[1][2] == 5
 
     @patch("lib.embeddings.embed_text")
-    def test_formats_embedding_as_vector_literal(self, mock_embed):
+    def test_passes_embedding_list_as_vector_param(self, mock_embed):
         mock_embed.return_value = [0.5, 0.25]
         conn, cur = self._make_conn([])
         retrieve_doc_chunks("query", conn, "sk-key", "model")
         args = cur.execute.call_args[0]
-        assert args[1][0] == "[0.5,0.25]"
+        assert args[1][0] == [0.5, 0.25]
 
     @patch("lib.embeddings.embed_text")
     def test_similarity_cast_to_float(self, mock_embed):

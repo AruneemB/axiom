@@ -126,12 +126,13 @@ class TestSiteChatRAG:
         chunks = [
             {"source": "docs/SPEC.md", "heading": "Fetch", "content": "Fetch runs at 06:00 UTC.", "similarity": 0.93},
         ]
-        h, _, _, mock_llm = _call({"message": "when does fetch run?"}, chunks=chunks)
+        h, _, mock_conn, mock_llm = _call({"message": "when does fetch run?"}, chunks=chunks)
         payload = mock_llm.call_args[1]["json"]
         system_content = payload["messages"][0]["content"]
         assert "RELEVANT DOCUMENTATION" in system_content
         assert "Fetch runs at 06:00 UTC." in system_content
         assert "[docs/SPEC.md / Fetch]" in system_content
+        mock_conn.return_value.close.assert_called()
 
     def test_static_prompt_used_when_no_chunks(self):
         h, _, _, mock_llm = _call({"message": "what is axiom?"}, chunks=[])
@@ -151,12 +152,13 @@ class TestSiteChatRAG:
     def test_fallback_to_static_prompt_on_rag_exception(self):
         h = _make_handler({"message": "what is axiom?"})
         with patch("api.chat.retrieve_doc_chunks", side_effect=Exception("db down")), \
-             patch("api.chat.get_connection"), \
+             patch("api.chat.get_connection") as mock_conn, \
              patch("api.chat.httpx.post", return_value=_llm_response()) as mock_llm, \
              patch.dict("os.environ", {"OPENROUTER_API_KEY": "sk-test", "DATABASE_URL": "postgresql://localhost/test"}):
             handler.do_POST(h)
         payload = mock_llm.call_args[1]["json"]
         assert payload["messages"][0]["content"] == _SYSTEM_PROMPT
+        mock_conn.return_value.close.assert_called()
 
     def test_multiple_chunks_all_injected(self):
         chunks = [
