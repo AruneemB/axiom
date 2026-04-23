@@ -26,3 +26,36 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     a_arr = np.array(a)
     b_arr = np.array(b)
     return float(np.dot(a_arr, b_arr) / (np.linalg.norm(a_arr) * np.linalg.norm(b_arr)))
+
+
+def retrieve_doc_chunks(
+    query: str,
+    conn,
+    api_key: str,
+    model: str,
+    top_k: int = 3,
+) -> list[dict]:
+    """Return the top-k doc_chunks most similar to query, ordered by cosine similarity."""
+    embedding = embed_text(query, model, api_key)
+    vec_str = "[" + ",".join(str(x) for x in embedding) + "]"
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT source, heading, content,
+                   1 - (embedding <=> %s::vector) AS similarity
+            FROM doc_chunks
+            ORDER BY embedding <=> %s::vector
+            LIMIT %s
+            """,
+            (vec_str, vec_str, top_k),
+        )
+        rows = cur.fetchall()
+    return [
+        {
+            "source": r["source"],
+            "heading": r["heading"],
+            "content": r["content"],
+            "similarity": float(r["similarity"]),
+        }
+        for r in rows
+    ]
