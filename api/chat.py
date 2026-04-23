@@ -8,7 +8,7 @@ import httpx
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from lib.db import get_connection
-from lib.embeddings import embed_text
+from lib.embeddings import retrieve_doc_chunks
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -161,7 +161,27 @@ class handler(BaseHTTPRequestHandler):
 
         model = os.getenv("CHAT_MODEL", "google/gemini-2.5-flash")
         timeout = int(os.getenv("OPENROUTER_TIMEOUT", "30"))
+        embedding_model = os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small")
+        database_url = os.getenv("DATABASE_URL", "")
+
         system_prompt = _SYSTEM_PROMPT
+        if database_url:
+            try:
+                conn = get_connection(database_url)
+                chunks = retrieve_doc_chunks(message, conn, api_key, embedding_model)
+                conn.close()
+                if chunks:
+                    context_block = "\n\n".join(
+                        f"[{c['source']} / {c['heading']}]\n{c['content']}"
+                        for c in chunks
+                    )
+                    system_prompt = (
+                        _SYSTEM_PROMPT
+                        + "\n\n---\n\nRELEVANT DOCUMENTATION\n\n"
+                        + context_block
+                    )
+            except Exception:
+                pass
 
         messages = [{"role": "system", "content": system_prompt}]
         for item in history:
