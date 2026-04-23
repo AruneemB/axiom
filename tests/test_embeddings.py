@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 import pytest
 
-from lib.embeddings import embed_text, cosine_similarity
+from lib.embeddings import embed_text, cosine_similarity, retrieve_doc_chunks
 
 
 class TestCosineSimlarity:
@@ -118,3 +118,57 @@ class TestEmbedText:
         mock_post.return_value = mock_response
         with pytest.raises(Exception, match="401"):
             embed_text("test", model="m", api_key="bad-key")
+
+
+class TestRetrieveDocChunks:
+
+    def _make_conn(self, rows):
+        conn = MagicMock()
+        cur = conn.cursor.return_value.__enter__.return_value
+        cur.fetchall.return_value = rows
+        return conn, cur
+
+    @patch("lib.embeddings.embed_text")
+    def test_returns_mapped_chunks(self, mock_embed):
+        mock_embed.return_value = [0.1] * 1536
+        rows = [
+            {"source": "docs/a.md", "heading": "Intro", "content": "Content A", "similarity": 0.95},
+            {"source": "docs/b.md", "heading": "API", "content": "Content B", "similarity": 0.88},
+        ]
+        conn, _ = self._make_conn(rows)
+        result = retrieve_doc_chunks("how does fetch work", conn, "sk-key", "openai/text-embedding-3-small", top_k=2)
+        assert len(result) == 2
+        assert result[0] == {"source": "docs/a.md", "heading": "Intro", "content": "Content A", "similarity": 0.95}
+        assert result[1]["heading"] == "API"
+
+    @patch("lib.embeddings.embed_text")
+    def test_returns_empty_list_when_no_chunks(self, mock_embed):
+        mock_embed.return_value = [0.1] * 1536
+        conn, _ = self._make_conn([])
+        result = retrieve_doc_chunks("query", conn, "sk-key", "model")
+        assert result == []
+
+    @patch("lib.embeddings.embed_text")
+    def test_passes_top_k_to_query(self, mock_embed):
+        mock_embed.return_value = [0.1] * 3
+        conn, cur = self._make_conn([])
+        retrieve_doc_chunks("query", conn, "sk-key", "model", top_k=5)
+        args = cur.execute.call_args[0]
+        assert args[1][2] == 5
+
+    @patch("lib.embeddings.embed_text")
+    def test_formats_embedding_as_vector_literal(self, mock_embed):
+        mock_embed.return_value = [0.5, 0.25]
+        conn, cur = self._make_conn([])
+        retrieve_doc_chunks("query", conn, "sk-key", "model")
+        args = cur.execute.call_args[0]
+        assert args[1][0] == "[0.5,0.25]"
+
+    @patch("lib.embeddings.embed_text")
+    def test_similarity_cast_to_float(self, mock_embed):
+        mock_embed.return_value = [0.1] * 1536
+        conn, _ = self._make_conn([
+            {"source": "s", "heading": "h", "content": "c", "similarity": 0.9},
+        ])
+        result = retrieve_doc_chunks("q", conn, "sk-key", "model")
+        assert isinstance(result[0]["similarity"], float)
