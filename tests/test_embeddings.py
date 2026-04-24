@@ -158,11 +158,15 @@ class TestRetrieveDocChunks:
 
     @patch("lib.embeddings.embed_text")
     def test_passes_embedding_list_as_vector_param(self, mock_embed):
+        # psycopg2 + pgvector expect bound parameters as Python list[float], not
+        # a pre-formatted string literal (e.g. "[0.5,0.25]") in the param tuple.
         mock_embed.return_value = [0.5, 0.25]
         conn, cur = self._make_conn([])
         retrieve_doc_chunks("query", conn, "sk-key", "model")
         args = cur.execute.call_args[0]
-        assert args[1][0] == [0.5, 0.25]
+        first_arg = args[1][0]
+        assert not isinstance(first_arg, str)
+        assert first_arg == [0.5, 0.25]
 
     @patch("lib.embeddings.embed_text")
     def test_similarity_cast_to_float(self, mock_embed):
