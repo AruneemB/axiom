@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import time
+from contextlib import closing
 from http.server import BaseHTTPRequestHandler
 
 import httpx
@@ -171,25 +172,21 @@ class handler(BaseHTTPRequestHandler):
 
         system_prompt = _SYSTEM_PROMPT
         if database_url:
-            conn = None
             try:
-                conn = get_connection(database_url)
-                chunks = retrieve_doc_chunks(message, conn, api_key, embedding_model)
-                if chunks:
-                    context_block = "\n\n".join(
-                        f"[{c['source']} / {c['heading']}]\n{c['content']}"
-                        for c in chunks
-                    )
-                    system_prompt = (
-                        _SYSTEM_PROMPT
-                        + "\n\n---\n\nRELEVANT DOCUMENTATION\n\n"
-                        + context_block
-                    )
+                with closing(get_connection(database_url)) as conn:
+                    chunks = retrieve_doc_chunks(message, conn, api_key, embedding_model)
+                    if chunks:
+                        context_block = "\n\n".join(
+                            f"[{c['source']} / {c['heading']}]\n{c['content']}"
+                            for c in chunks
+                        )
+                        system_prompt = (
+                            _SYSTEM_PROMPT
+                            + "\n\n---\n\nRELEVANT DOCUMENTATION\n\n"
+                            + context_block
+                        )
             except Exception:
                 pass
-            finally:
-                if conn:
-                    conn.close()
 
         messages = [{"role": "system", "content": system_prompt}]
         for item in history:
