@@ -1,7 +1,7 @@
 {
   "builds": [
     { "src": "api/fetch.py",    "use": "@vercel/python" },
-    { "src": "api/deliver.py",  "use": "@vercel/python" },
+    { "src": "api/deliver.py",  "use": "@vercel/python", "config": { "maxDuration": 300 } },
     { "src": "api/telegram.py", "use": "@vercel/python" },
     { "src": "api/spark.py",    "use": "@vercel/python" },
     { "src": "api/status.py",   "use": "@vercel/python" },
@@ -21,9 +21,6 @@
     { "src": "/favicon.svg",  "dest": "/favicon.svg" },
     { "src": "/(.*)",         "dest": "/public/$1" }
   ],
-  "functions": {
-    "api/deliver.py": { "maxDuration": 300 }
-  },
   "crons": [
     { "path": "/api/fetch",   "schedule": "0 6 * * *" },
     { "path": "/api/deliver", "schedule": "0 8 * * *" },
