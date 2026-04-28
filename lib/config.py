@@ -24,6 +24,7 @@ class Config:
     embedding_model: str
     max_ideas_per_day: int
     openrouter_timeout: int
+    deliver_llm_timeout: int
 
     # Chat feature settings
     chat_enabled: bool
@@ -71,6 +72,7 @@ def load_config() -> Config:
         embedding_model=os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small"),
         max_ideas_per_day=int(os.getenv("MAX_IDEAS_PER_DAY", "2")),
         openrouter_timeout=int(os.getenv("OPENROUTER_TIMEOUT", "90")),
+        deliver_llm_timeout=int(os.getenv("DELIVER_LLM_TIMEOUT", "50")),
 
         # Chat feature
         chat_enabled=os.getenv("CHAT_ENABLED", "true").lower() == "true",
