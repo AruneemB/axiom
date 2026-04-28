@@ -160,6 +160,7 @@ def run_deliver(cfg) -> dict:
         idea_id = store_idea(conn, paper_id, idea, idea_embedding)
 
         # Send to all active users
+        failed_users = []
         for user_id in active_users:
             try:
                 send_idea_message(
@@ -173,6 +174,7 @@ def run_deliver(cfg) -> dict:
                 print(f"[deliver] sent to user {user_id}")
             except Exception as e:
                 print(f"[deliver] failed to send to user {user_id}: {e}")
+                failed_users.append(user_id)
 
         mark_processed(conn, paper_id)
         _notify_owner(cfg, status="sent", idea_id=idea_id, paper_id=paper_id, model=model)
@@ -187,7 +189,9 @@ def run_deliver(cfg) -> dict:
                     "llm_parse_error": 0,
                     "below_quality_gate": 0,
                     "duplicate_idea": 0,
-                }
+                },
+                "users_notified": len(active_users) - len(failed_users),
+                "send_failures": len(failed_users),
             },
         }
     finally:

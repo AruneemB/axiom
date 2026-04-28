@@ -78,7 +78,8 @@ def _make_idea(novelty=7, feasibility=8):
 def _mock_conn_with_papers(paper, users):
     """Create a mock connection returning a single paper via fetchone and users via fetchall."""
     mock_cursor = MagicMock()
-    mock_cursor.fetchone.side_effect = [paper, {"id": 1}]  # paper query, store_idea RETURNING id
+    # fetchone call order: 1) paper SELECT query, 2) store_idea INSERT RETURNING id
+    mock_cursor.fetchone.side_effect = [paper, {"id": 1}]
     mock_cursor.fetchall.return_value = [{"user_id": u} for u in users]
     mock_conn = MagicMock()
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
