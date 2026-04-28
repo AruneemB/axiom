@@ -11,7 +11,7 @@ sys.modules.setdefault("psycopg2", MagicMock())
 sys.modules.setdefault("psycopg2.extras", MagicMock())
 
 from api.deliver import (  # noqa: E402
-    handler, run_deliver, mark_processed, is_duplicate, store_idea,
+    handler, run_deliver, mark_processed, is_duplicate, store_idea, _notify_owner,
 )
 
 
@@ -39,6 +39,7 @@ def _make_config(**overrides):
         "database_url": "postgresql://localhost/test",
         "openrouter_api_key": "or-key",
         "default_model": "google/gemini-flash-1.5",
+        "fallback_model": "google/gemini-2.0-flash",
         "deepdive_model": "anthropic/claude-haiku",
         "deepdive_day": 4,
         "cron_secret": "my-secret",
@@ -51,6 +52,7 @@ def _make_config(**overrides):
         "embedding_model": "openai/text-embedding-3-small",
         "max_ideas_per_day": 2,
         "openrouter_timeout": 90,
+        "deliver_llm_timeout": 50,
     }
     defaults.update(overrides)
     cfg = MagicMock()
@@ -73,11 +75,11 @@ def _make_idea(novelty=7, feasibility=8):
     }
 
 
-def _mock_conn_with_papers(papers, users):
-    """Create a mock connection that returns papers then users from two fetchall calls."""
+def _mock_conn_with_papers(paper, users):
+    """Create a mock connection returning a single paper via fetchone and users via fetchall."""
     mock_cursor = MagicMock()
-    mock_cursor.fetchall.side_effect = [papers, [{"user_id": u} for u in users]]
-    mock_cursor.fetchone.return_value = {"id": 1}  # for store_idea RETURNING id
+    mock_cursor.fetchone.side_effect = [paper, {"id": 1}]  # paper query, store_idea RETURNING id
+    mock_cursor.fetchall.return_value = [{"user_id": u} for u in users]
     mock_conn = MagicMock()
     mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
     mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -238,7 +240,7 @@ class TestRunDeliverEarlyExit:
 
     @patch("api.deliver.get_connection")
     def test_no_papers_returns_zero(self, mock_get_conn):
-        mock_conn = _mock_conn_with_papers(papers=[], users=[123])
+        mock_conn = _mock_conn_with_papers(paper=None, users=[123])
         mock_get_conn.return_value = mock_conn
         cfg = _make_config()
         result = run_deliver(cfg)
@@ -249,7 +251,7 @@ class TestRunDeliverEarlyExit:
 
     @patch("api.deliver.get_connection")
     def test_no_users_returns_zero(self, mock_get_conn):
-        mock_conn = _mock_conn_with_papers(papers=[_make_paper()], users=[])
+        mock_conn = _mock_conn_with_papers(paper=_make_paper(), users=[])
         mock_get_conn.return_value = mock_conn
         cfg = _make_config()
         result = run_deliver(cfg)
@@ -274,7 +276,7 @@ class TestRunDeliverModelSelection:
                                                mock_synth, mock_embed,
                                                mock_dedup, mock_store, mock_send):
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)  # Monday (weekday=0)
-        mock_conn = _mock_conn_with_papers([_make_paper()], [123])
+        mock_conn = _mock_conn_with_papers(_make_paper(), [123])
         mock_conn_fn.return_value = mock_conn
         mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config(deepdive_day=4)
@@ -292,7 +294,7 @@ class TestRunDeliverModelSelection:
                                                     mock_synth, mock_embed,
                                                     mock_dedup, mock_store, mock_send):
         mock_dt.utcnow.return_value = datetime(2024, 1, 19)  # Friday (weekday=4)
-        mock_conn = _mock_conn_with_papers([_make_paper()], [123])
+        mock_conn = _mock_conn_with_papers(_make_paper(), [123])
         mock_conn_fn.return_value = mock_conn
         mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config(deepdive_day=4)
@@ -313,7 +315,7 @@ class TestRunDeliverSkipReasons:
     def test_llm_parse_error_marks_processed(self, mock_dt, mock_conn_fn,
                                               mock_synth, mock_mark):
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
-        mock_conn = _mock_conn_with_papers([_make_paper()], [123])
+        mock_conn = _mock_conn_with_papers(_make_paper(), [123])
         mock_conn_fn.return_value = mock_conn
         cfg = _make_config()
         run_deliver(cfg)
@@ -326,7 +328,7 @@ class TestRunDeliverSkipReasons:
     def test_below_quality_gate_marks_processed(self, mock_dt, mock_conn_fn,
                                                  mock_synth, mock_mark):
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
-        mock_conn = _mock_conn_with_papers([_make_paper()], [123])
+        mock_conn = _mock_conn_with_papers(_make_paper(), [123])
         mock_conn_fn.return_value = mock_conn
         mock_synth.return_value = (_make_idea(novelty=3, feasibility=4), "")  # 7 < 13
         cfg = _make_config(quality_gate_min=13)
@@ -343,7 +345,7 @@ class TestRunDeliverSkipReasons:
                                              mock_synth, mock_embed,
                                              mock_dedup, mock_mark):
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
-        mock_conn = _mock_conn_with_papers([_make_paper()], [123])
+        mock_conn = _mock_conn_with_papers(_make_paper(), [123])
         mock_conn_fn.return_value = mock_conn
         mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config()
@@ -369,7 +371,7 @@ class TestRunDeliverSuccess:
                                         mock_synth, mock_embed,
                                         mock_dedup, mock_store, mock_send, mock_mark):
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
-        mock_conn = _mock_conn_with_papers([_make_paper()], [100, 200, 300])
+        mock_conn = _mock_conn_with_papers(_make_paper(), [100, 200, 300])
         mock_conn_fn.return_value = mock_conn
         mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config()
@@ -387,18 +389,17 @@ class TestRunDeliverSuccess:
     @patch("api.deliver.synthesize_idea")
     @patch("api.deliver.get_connection")
     @patch("api.deliver.datetime")
-    def test_respects_max_ideas_per_day(self, mock_dt, mock_conn_fn,
-                                         mock_synth, mock_embed,
-                                         mock_dedup, mock_store, mock_send, mock_mark):
+    def test_single_run_sends_exactly_one_paper(self, mock_dt, mock_conn_fn,
+                                                 mock_synth, mock_embed,
+                                                 mock_dedup, mock_store, mock_send, mock_mark):
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
-        papers = [_make_paper(id=f"p{i}") for i in range(5)]
-        mock_conn = _mock_conn_with_papers(papers, [123])
+        mock_conn = _mock_conn_with_papers(_make_paper(id="p1"), [123])
         mock_conn_fn.return_value = mock_conn
         mock_synth.return_value = (_make_idea(), "")
-        cfg = _make_config(max_ideas_per_day=2)
+        cfg = _make_config()
         result = run_deliver(cfg)
-        assert result["sent"] == 2
-        assert len(result["papers"]) == 2
+        assert result["sent"] == 1
+        assert result["papers"] == ["p1"]
 
     @patch("api.deliver.mark_processed")
     @patch("api.deliver.send_idea_message")
@@ -412,12 +413,86 @@ class TestRunDeliverSuccess:
                                           mock_synth, mock_embed,
                                           mock_dedup, mock_store, mock_send, mock_mark):
         mock_dt.utcnow.return_value = datetime(2024, 1, 15)
-        mock_conn = _mock_conn_with_papers([_make_paper(id="2401.99999")], [123])
+        mock_conn = _mock_conn_with_papers(_make_paper(id="2401.99999"), [123])
         mock_conn_fn.return_value = mock_conn
         mock_synth.return_value = (_make_idea(), "")
         cfg = _make_config()
         result = run_deliver(cfg)
         assert "2401.99999" in result["papers"]
+
+
+# ---------------------------------------------------------------------------
+# run_deliver: deliver_llm_timeout is used (not openrouter_timeout)
+# ---------------------------------------------------------------------------
+
+class TestRunDeliverTimeout:
+
+    @patch("api.deliver._notify_owner")
+    @patch("api.deliver.mark_processed")
+    @patch("api.deliver.synthesize_idea", return_value=(None, "error"))
+    @patch("api.deliver.get_connection")
+    @patch("api.deliver.datetime")
+    def test_uses_deliver_llm_timeout_not_openrouter_timeout(
+            self, mock_dt, mock_get_conn, mock_synth, mock_mark, mock_notify):
+        mock_dt.utcnow.return_value = datetime(2024, 1, 15)
+        mock_conn = _mock_conn_with_papers(_make_paper(), [123])
+        mock_get_conn.return_value = mock_conn
+        cfg = _make_config(deliver_llm_timeout=42, openrouter_timeout=90)
+        run_deliver(cfg)
+        _, kwargs = mock_synth.call_args
+        assert kwargs["timeout"] == 42
+
+    @patch("api.deliver._notify_owner")
+    @patch("api.deliver.mark_processed")
+    @patch("api.deliver.synthesize_idea", return_value=(None, "error"))
+    @patch("api.deliver.get_connection")
+    @patch("api.deliver.datetime")
+    def test_openrouter_timeout_not_passed_to_deliver(
+            self, mock_dt, mock_get_conn, mock_synth, mock_mark, mock_notify):
+        """openrouter_timeout (90s) must never be used as the deliver LLM timeout."""
+        mock_dt.utcnow.return_value = datetime(2024, 1, 15)
+        mock_conn = _mock_conn_with_papers(_make_paper(), [123])
+        mock_get_conn.return_value = mock_conn
+        cfg = _make_config(deliver_llm_timeout=50, openrouter_timeout=90)
+        run_deliver(cfg)
+        _, kwargs = mock_synth.call_args
+        assert kwargs["timeout"] != 90
+
+
+# ---------------------------------------------------------------------------
+# _notify_owner
+# ---------------------------------------------------------------------------
+
+class TestNotifyOwner:
+
+    @patch("api.deliver.send_message")
+    def test_sends_to_all_telegram_chat_ids(self, mock_send):
+        cfg = _make_config(telegram_chat_ids=[111, 222])
+        _notify_owner(cfg, status="sent", idea_id=5, paper_id="2401.1234", model="gemini")
+        assert mock_send.call_count == 2
+        chat_ids_called = [c[0][0] for c in mock_send.call_args_list]
+        assert sorted(chat_ids_called) == [111, 222]
+
+    @patch("api.deliver.send_message")
+    def test_sent_message_contains_idea_id(self, mock_send):
+        cfg = _make_config(telegram_chat_ids=[1])
+        _notify_owner(cfg, status="sent", idea_id=99, paper_id="p1", model="m")
+        text = mock_send.call_args[0][1]
+        assert "99" in text
+
+    @patch("api.deliver.send_message")
+    def test_skipped_message_contains_reason(self, mock_send):
+        cfg = _make_config(telegram_chat_ids=[1])
+        _notify_owner(cfg, status="skipped", reason="below_quality_gate", paper_id="p1")
+        text = mock_send.call_args[0][1]
+        assert "below_quality_gate" in text
+
+    @patch("api.deliver.send_message", side_effect=Exception("network error"))
+    def test_swallows_send_errors(self, mock_send):
+        """_notify_owner must never raise even if send_message fails."""
+        cfg = _make_config(telegram_chat_ids=[111])
+        _notify_owner(cfg, status="sent", idea_id=1, paper_id="p1", model="m")
+        # Reached here without raising — test passes
 
 
 # ---------------------------------------------------------------------------
