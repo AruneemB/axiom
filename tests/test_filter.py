@@ -7,7 +7,7 @@ import pytest
 sys.modules.setdefault("psycopg2", MagicMock())
 sys.modules.setdefault("psycopg2.extras", MagicMock())
 
-from lib.filter import RelevanceFilter  # noqa: E402
+from lib.filter import RelevanceFilter, _parse_vector  # noqa: E402
 
 
 class TestRelevanceFilterInit:
@@ -295,3 +295,42 @@ class TestGetSeedEmbeddings:
         result = rf._get_seed_embeddings()
 
         assert len(result) == 2
+
+    @patch("lib.filter.get_connection")
+    def test_parses_string_vector_from_db(self, mock_get_conn):
+        # psycopg2 without a pgvector adapter returns vector columns as raw
+        # strings ("[0.1,0.2,...]"). Verify they are correctly parsed to floats.
+        vec = [0.1] * 4
+        string_repr = "[" + ",".join(str(x) for x in vec) + "]"
+        mock_cursor = MagicMock()
+        mock_cursor.fetchall.return_value = [{"embedding": string_repr}]
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_get_conn.return_value = mock_conn
+
+        rf = RelevanceFilter(topics=["momentum"], threshold=0.65, database_url="postgresql://localhost/test")
+        result = rf._get_seed_embeddings()
+
+        assert result == [pytest.approx(vec)]
+        assert all(isinstance(x, float) for x in result[0])
+
+
+class TestParseVector:
+
+    def test_parses_string_format(self):
+        assert _parse_vector("[0.1,0.2,0.3]") == pytest.approx([0.1, 0.2, 0.3])
+
+    def test_parses_list_passthrough(self):
+        v = [0.1, 0.2, 0.3]
+        assert _parse_vector(v) == pytest.approx(v)
+
+    def test_string_length_matches_dimension(self):
+        vec = [0.5] * 1536
+        s = "[" + ",".join(str(x) for x in vec) + "]"
+        result = _parse_vector(s)
+        assert len(result) == 1536
+
+    def test_string_values_are_floats(self):
+        result = _parse_vector("[1.0,2.0,3.0]")
+        assert all(isinstance(x, float) for x in result)
