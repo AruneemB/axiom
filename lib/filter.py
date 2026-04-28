@@ -2,6 +2,19 @@ from lib.embeddings import embed_text, cosine_similarity
 from lib.db import get_connection
 
 
+def _parse_vector(v) -> list[float]:
+    """Convert a pgvector value to a list of floats.
+
+    psycopg2 without a registered pgvector adapter returns vector columns as
+    the raw string "[0.1,0.2,...]". list() on a string yields characters, not
+    floats — this helper handles both the string case and the already-parsed
+    list/sequence case.
+    """
+    if isinstance(v, str):
+        return [float(x) for x in v.strip("[]").split(",")]
+    return list(v)
+
+
 class RelevanceFilter:
 
     def __init__(self, topics: list[str], threshold: float, database_url: str = None,
@@ -52,5 +65,5 @@ class RelevanceFilter:
             rows = cur.fetchall()
         conn.close()
 
-        self._seed_embeddings = [list(row["embedding"]) for row in rows if row["embedding"]]
+        self._seed_embeddings = [_parse_vector(row["embedding"]) for row in rows if row["embedding"]]
         return self._seed_embeddings
