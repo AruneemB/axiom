@@ -7,11 +7,11 @@ from lib.audit_logger import is_telegram_ip, log_security_event, EVT_RATE_LIMITE
 class TestIsTelegramIp:
 
     def test_accepts_ip_in_first_range(self):
-        # 149.154.160.0/20 covers 149.154.160.0 – 149.154.175.255
+        # 149.154.160.0/20 covers 149.154.160.0 - 149.154.175.255
         assert is_telegram_ip("149.154.160.1") is True
 
     def test_accepts_ip_in_second_range(self):
-        # 91.108.4.0/22 covers 91.108.4.0 – 91.108.7.255
+        # 91.108.4.0/22 covers 91.108.4.0 - 91.108.7.255
         assert is_telegram_ip("91.108.4.1") is True
 
     def test_rejects_non_telegram_ip(self):

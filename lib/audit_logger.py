@@ -59,4 +59,7 @@ def log_security_event(
             )
         conn.commit()
     except Exception:
-        pass
+        try:
+            conn.rollback()
+        except Exception:
+            pass

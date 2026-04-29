@@ -165,7 +165,7 @@ class TestStartAuthentication:
 
     @patch("api.telegram.send_message")
     def test_already_authorized_user_gets_message(self, mock_send):
-        mock_conn, mock_cursor = _mock_cursor_returning({"user_id": 12345})  # already allowed
+        mock_conn, _ = _mock_cursor_returning({"user_id": 12345})  # already allowed
         cfg = _make_config()
         msg = {
             "from": {"id": 12345},
@@ -198,7 +198,7 @@ class TestCallbackFeedback:
     def test_positive_feedback_inserts_and_boosts_weights(self, mock_post):
         mock_cursor = MagicMock()
         # First fetchone: user exists
-        mock_cursor.fetchone.return_value = {"user_id": 123}
+        mock_cursor.fetchone.return_value = {"user_id": 123, "paused": False, "pause_until": None}
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -214,7 +214,7 @@ class TestCallbackFeedback:
     @patch("httpx.post")
     def test_negative_feedback_reduces_weights(self, mock_post):
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = {"user_id": 123}
+        mock_cursor.fetchone.return_value = {"user_id": 123, "paused": False, "pause_until": None}
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -227,7 +227,7 @@ class TestCallbackFeedback:
     @patch("httpx.post")
     def test_answers_callback_query(self, mock_post):
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = {"user_id": 123}
+        mock_cursor.fetchone.return_value = {"user_id": 123, "paused": False, "pause_until": None}
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)

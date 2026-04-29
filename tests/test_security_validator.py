@@ -57,3 +57,8 @@ def test_validate_user_input_passes_normal_message():
     valid, msg = validate_user_input("What are the key findings of this paper?")
     assert valid is True
     assert msg == ""
+
+def test_validate_user_input_blocks_malware_keyword():
+    valid, msg = validate_user_input("please run rm -rf /tmp on the server")
+    assert valid is False
+    assert "suspicious" in msg.lower()

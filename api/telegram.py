@@ -40,11 +40,12 @@ class handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        # Layer 1b: Optional IP allowlist (Telegram CIDR ranges)
+        # Layer 1b: Optional IP allowlist (Telegram CIDR ranges) — fail-closed:
+        # a missing or non-Telegram header is treated as a rejection.
         if cfg.telegram_ip_allowlist_enabled:
             forwarded_pre = self.headers.get("X-Forwarded-For", "")
             req_ip_pre = forwarded_pre.split(",")[0].strip() if forwarded_pre else ""
-            if req_ip_pre and not is_telegram_ip(req_ip_pre):
+            if not req_ip_pre or not is_telegram_ip(req_ip_pre):
                 self.send_response(403)
                 self.end_headers()
                 return
@@ -86,6 +87,7 @@ def handle_message(msg: dict, conn, cfg, req_ip: str = "unknown"):
     if not burst_ok:
         log_security_event(conn, EVT_BURST_BLOCKED, user_id=user_id, ip_addr=req_ip)
         record_violation(user_id, "burst_blocked", conn)
+        _check_and_apply_auto_suspend(user_id, chat_id, conn, cfg)
         return  # Silent — don't help an attacker gauge limits
 
     # Handle /start — open registration, no password required
@@ -121,6 +123,9 @@ def handle_message(msg: dict, conn, cfg, req_ip: str = "unknown"):
         log_security_event(conn, EVT_BLOCKED_UNKNOWN, user_id=user_id, ip_addr=req_ip)
         return  # Silent ignore — do not reveal bot existence
 
+    if row["paused"] and row["pause_until"] and row["pause_until"] > datetime.now(timezone.utc):
+        return  # Suspended — silently drop
+
     # Universal input validation — applies before every command handler
     is_valid, val_msg = validate_user_input(text)
     if not is_valid:
@@ -133,7 +138,7 @@ def handle_message(msg: dict, conn, cfg, req_ip: str = "unknown"):
 
     # Universal command rate limit (/chat and /report have their own sub-systems)
     command = text.split()[0] if text.startswith("/") else "text"
-    if command not in ("/chat", "/report", "/spark"):
+    if command not in ("/chat", "/report"):
         allowed, rl_msg = check_global_rate_limit(user_id, command, conn)
         if not allowed:
             log_security_event(conn, EVT_RATE_LIMITED, user_id=user_id,
@@ -180,9 +185,12 @@ def handle_callback(cb: dict, conn, cfg, req_ip: str = "unknown"):
     callback_id = cb["id"]
 
     with conn.cursor() as cur:
-        cur.execute("SELECT 1 FROM allowed_users WHERE user_id = %s", (user_id,))
-        if not cur.fetchone():
-            return
+        cur.execute("SELECT paused, pause_until FROM allowed_users WHERE user_id = %s", (user_id,))
+        row = cur.fetchone()
+    if not row:
+        return
+    if row["paused"] and row["pause_until"] and row["pause_until"] > datetime.now(timezone.utc):
+        return  # Suspended — silently drop
 
     # Burst and rate limit for callback buttons
     burst_ok, _ = check_burst_limit(user_id, conn)

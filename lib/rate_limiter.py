@@ -44,6 +44,7 @@ def check_burst_limit(user_id: int, conn) -> Tuple[bool, str]:
             SELECT COUNT(*) AS cnt
             FROM rate_limit_events
             WHERE user_id = %s
+              AND command = '__burst__'
               AND ts > NOW() - INTERVAL '60 seconds'
             """,
             (user_id,),

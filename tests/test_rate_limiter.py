@@ -25,43 +25,43 @@ def _make_conn(fetchone_values):
 class TestCheckBurstLimit:
 
     def test_allows_under_threshold(self):
-        conn, cursor = _make_conn([{"cnt": BURST_LIMIT - 1}])
+        conn, _ = _make_conn([{"cnt": BURST_LIMIT - 1}])
         ok, msg = check_burst_limit(12345, conn)
         assert ok is True
         assert msg == ""
         conn.commit.assert_called()
 
     def test_blocks_at_threshold(self):
-        conn, cursor = _make_conn([{"cnt": BURST_LIMIT}])
+        conn, _ = _make_conn([{"cnt": BURST_LIMIT}])
         ok, msg = check_burst_limit(12345, conn)
         assert ok is False
         assert "slow down" in msg.lower()
         conn.commit.assert_not_called()
 
     def test_blocks_above_threshold(self):
-        conn, cursor = _make_conn([{"cnt": BURST_LIMIT + 5}])
-        ok, msg = check_burst_limit(12345, conn)
+        conn, _ = _make_conn([{"cnt": BURST_LIMIT + 5}])
+        ok, _ = check_burst_limit(12345, conn)
         assert ok is False
 
 
 class TestCheckGlobalRateLimit:
 
     def test_allows_unknown_command_under_default(self):
-        conn, cursor = _make_conn([{"cnt": 0}])
-        ok, msg = check_global_rate_limit(1, "unknown_cmd", conn)
+        conn, _ = _make_conn([{"cnt": 0}])
+        ok, _ = check_global_rate_limit(1, "unknown_cmd", conn)
         assert ok is True
         conn.commit.assert_called()
 
     def test_blocks_at_command_limit(self):
         from lib.rate_limiter import COMMAND_LIMITS, DEFAULT_LIMIT
         limit = COMMAND_LIMITS.get("/status", DEFAULT_LIMIT)
-        conn, cursor = _make_conn([{"cnt": limit}])
+        conn, _ = _make_conn([{"cnt": limit}])
         ok, msg = check_global_rate_limit(1, "/status", conn)
         assert ok is False
         assert str(limit) in msg
 
     def test_allows_first_message(self):
-        conn, cursor = _make_conn([{"cnt": 0}])
+        conn, _ = _make_conn([{"cnt": 0}])
         ok, _ = check_global_rate_limit(1, "/topics", conn)
         assert ok is True
 
