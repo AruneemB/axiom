@@ -268,7 +268,7 @@ def handle_topics(chat_id: int, conn, cfg):
         cur.execute("SELECT topic, weight FROM topic_weights ORDER BY weight DESC LIMIT 15")
         rows = cur.fetchall()
 
-    lines = [f"`{esc(row['topic'])}` — {esc(f'{row[\"weight\"]:.2f}')}" for row in rows]
+    lines = ["`{}`  —  {}".format(esc(row["topic"]), esc(f"{row['weight']:.2f}")) for row in rows]
     send_message(
         chat_id,
         "*Topic weights*\n\n" + "\n".join(lines),
