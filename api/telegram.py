@@ -15,8 +15,15 @@ from lib.chat import (
     get_or_create_session, get_conversation_context, store_message,
     generate_chat_response, check_rate_limits
 )
-from lib.security_validator import validate_issue_content, detect_pii, sanitize_content
+from lib.security_validator import validate_issue_content, detect_pii, sanitize_content, validate_user_input
 from lib.github_client import create_issue, format_issue_body, generate_issue_title
+from lib.rate_limiter import check_burst_limit, check_global_rate_limit, record_violation, check_auto_suspend
+from lib.audit_logger import (
+    log_security_event, is_telegram_ip,
+    EVT_BLOCKED_UNKNOWN, EVT_RATE_LIMITED,
+    EVT_VALIDATION_FAILED, EVT_AUTO_SUSPENDED,
+    EVT_BURST_BLOCKED, EVT_IP_REJECTED,
+)
 
 COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback", "/spark", "/chat", "/context", "/report"}
 
@@ -33,8 +40,21 @@ class handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
+        # Layer 1b: Optional IP allowlist (Telegram CIDR ranges)
+        if cfg.telegram_ip_allowlist_enabled:
+            forwarded_pre = self.headers.get("X-Forwarded-For", "")
+            req_ip_pre = forwarded_pre.split(",")[0].strip() if forwarded_pre else ""
+            if req_ip_pre and not is_telegram_ip(req_ip_pre):
+                self.send_response(403)
+                self.end_headers()
+                return
+
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length))
+
+        # Extract client IP for downstream audit logging
+        forwarded = self.headers.get("X-Forwarded-For", "")
+        req_ip = forwarded.split(",")[0].strip() if forwarded else "unknown"
 
         # Respond 200 immediately so Telegram doesn't retry
         self.send_response(200)
@@ -44,14 +64,14 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             if "callback_query" in body:
-                handle_callback(body["callback_query"], conn, cfg)
+                handle_callback(body["callback_query"], conn, cfg, req_ip)
             elif "message" in body:
-                handle_message(body["message"], conn, cfg)
+                handle_message(body["message"], conn, cfg, req_ip)
         finally:
             conn.close()
 
 
-def handle_message(msg: dict, conn, cfg):
+def handle_message(msg: dict, conn, cfg, req_ip: str = "unknown"):
     user = msg.get("from", {})
     user_id = user.get("id")
     text = msg.get("text", "").strip()
@@ -59,6 +79,14 @@ def handle_message(msg: dict, conn, cfg):
 
     if not user_id or not text:
         return
+
+    # Burst / flood protection — checked before whitelist so unknown users
+    # can't trivially enumerate the service via rapid-fire probing.
+    burst_ok, _ = check_burst_limit(user_id, conn)
+    if not burst_ok:
+        log_security_event(conn, EVT_BURST_BLOCKED, user_id=user_id, ip_addr=req_ip)
+        record_violation(user_id, "burst_blocked", conn)
+        return  # Silent — don't help an attacker gauge limits
 
     # Handle /start — open registration, no password required
     if text.startswith("/start"):
@@ -90,7 +118,30 @@ def handle_message(msg: dict, conn, cfg):
         row = cur.fetchone()
 
     if not row:
+        log_security_event(conn, EVT_BLOCKED_UNKNOWN, user_id=user_id, ip_addr=req_ip)
         return  # Silent ignore — do not reveal bot existence
+
+    # Universal input validation — applies before every command handler
+    is_valid, val_msg = validate_user_input(text)
+    if not is_valid:
+        log_security_event(conn, EVT_VALIDATION_FAILED, user_id=user_id,
+                           details=text[:30], ip_addr=req_ip)
+        record_violation(user_id, "validation_failed", conn)
+        _check_and_apply_auto_suspend(user_id, chat_id, conn, cfg)
+        send_message(chat_id, val_msg, cfg.telegram_bot_token)
+        return
+
+    # Universal command rate limit (/chat and /report have their own sub-systems)
+    command = text.split()[0] if text.startswith("/") else "text"
+    if command not in ("/chat", "/report", "/spark"):
+        allowed, rl_msg = check_global_rate_limit(user_id, command, conn)
+        if not allowed:
+            log_security_event(conn, EVT_RATE_LIMITED, user_id=user_id,
+                               details=command, ip_addr=req_ip)
+            record_violation(user_id, "rate_limit_command", conn)
+            _check_and_apply_auto_suspend(user_id, chat_id, conn, cfg)
+            send_message(chat_id, rl_msg, cfg.telegram_bot_token)
+            return
 
     if text == "/status":
         handle_status(chat_id, conn, cfg)
@@ -112,7 +163,18 @@ def handle_message(msg: dict, conn, cfg):
         handle_report(user_id, chat_id, text, msg, conn, cfg)
 
 
-def handle_callback(cb: dict, conn, cfg):
+def _check_and_apply_auto_suspend(user_id: int, chat_id: int, conn, cfg) -> None:
+    just_suspended = check_auto_suspend(user_id, conn)
+    if just_suspended:
+        log_security_event(conn, EVT_AUTO_SUSPENDED, user_id=user_id)
+        send_message(
+            chat_id,
+            "Your account has been temporarily suspended for 1 hour due to repeated policy violations.",
+            cfg.telegram_bot_token,
+        )
+
+
+def handle_callback(cb: dict, conn, cfg, req_ip: str = "unknown"):
     user_id = cb["from"]["id"]
     data = cb.get("data", "")
     callback_id = cb["id"]
@@ -121,6 +183,23 @@ def handle_callback(cb: dict, conn, cfg):
         cur.execute("SELECT 1 FROM allowed_users WHERE user_id = %s", (user_id,))
         if not cur.fetchone():
             return
+
+    # Burst and rate limit for callback buttons
+    burst_ok, _ = check_burst_limit(user_id, conn)
+    if not burst_ok:
+        log_security_event(conn, EVT_BURST_BLOCKED, user_id=user_id, ip_addr=req_ip)
+        record_violation(user_id, "burst_blocked", conn)
+        return
+
+    allowed, _ = check_global_rate_limit(user_id, "callback", conn)
+    if not allowed:
+        log_security_event(conn, EVT_RATE_LIMITED, user_id=user_id,
+                           details="callback", ip_addr=req_ip)
+        record_violation(user_id, "rate_limit_command", conn)
+        cb_chat_id = cb.get("message", {}).get("chat", {}).get("id")
+        if cb_chat_id:
+            _check_and_apply_auto_suspend(user_id, cb_chat_id, conn, cfg)
+        return
 
     # Expected data format: "feedback:{idea_id}:{value}" where value is 1 or -1
     if data.startswith("feedback:"):
@@ -189,7 +268,7 @@ def handle_topics(chat_id: int, conn, cfg):
         cur.execute("SELECT topic, weight FROM topic_weights ORDER BY weight DESC LIMIT 15")
         rows = cur.fetchall()
 
-    lines = [f"`{esc(row['topic'])}` — {esc(f'{row["weight"]:.2f}')}" for row in rows]
+    lines = [f"`{esc(row['topic'])}` — {esc(f'{row[\"weight\"]:.2f}')}" for row in rows]
     send_message(
         chat_id,
         "*Topic weights*\n\n" + "\n".join(lines),
