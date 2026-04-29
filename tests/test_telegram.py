@@ -18,6 +18,20 @@ from api.telegram import (  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
+# Autouse fixture: stub out security functions so existing command tests
+# don't need to set up rate_limit_events cursor responses.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(autouse=True)
+def _stub_security(monkeypatch):
+    monkeypatch.setattr("api.telegram.check_burst_limit", lambda *a, **kw: (True, ""))
+    monkeypatch.setattr("api.telegram.check_global_rate_limit", lambda *a, **kw: (True, ""))
+    monkeypatch.setattr("api.telegram.record_violation", lambda *a, **kw: None)
+    monkeypatch.setattr("api.telegram.check_auto_suspend", lambda *a, **kw: False)
+    monkeypatch.setattr("api.telegram.log_security_event", lambda *a, **kw: None)
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -39,6 +53,7 @@ def _make_config(**overrides):
         "openrouter_timeout": 10,
         "github_token": "gh_tok",
         "max_github_issues_per_day": 3,
+        "telegram_ip_allowlist_enabled": False,
     }
     defaults.update(overrides)
     cfg = MagicMock()
@@ -131,13 +146,13 @@ class TestUnknownUserSilentIgnore:
 class TestStartAuthentication:
 
     @patch("api.telegram.send_message")
-    def test_correct_password_inserts_user(self, mock_send):
+    def test_start_registers_new_user(self, mock_send):
         mock_conn, mock_cursor = _mock_cursor_returning(None)  # not already allowed
         cfg = _make_config()
         msg = {
             "from": {"id": 12345, "username": "testuser", "first_name": "Test"},
             "chat": {"id": 12345},
-            "text": "/start s3cret-password",
+            "text": "/start",
         }
         handle_message(msg, mock_conn, cfg)
         # Verify INSERT was called
@@ -146,37 +161,11 @@ class TestStartAuthentication:
         assert len(insert_calls) == 1
         mock_conn.commit.assert_called()
         mock_send.assert_called_once()
-        assert "Access granted" in mock_send.call_args[0][1]
-
-    @patch("api.telegram.send_message")
-    def test_wrong_password_sends_invalid(self, mock_send):
-        mock_conn, mock_cursor = _mock_cursor_returning(None)
-        cfg = _make_config()
-        msg = {
-            "from": {"id": 12345},
-            "chat": {"id": 12345},
-            "text": "/start wrong-password",
-        }
-        handle_message(msg, mock_conn, cfg)
-        mock_send.assert_called_once()
-        assert "Invalid token" in mock_send.call_args[0][1]
+        assert "Welcome" in mock_send.call_args[0][1]
 
     @patch("api.telegram.send_message")
     def test_already_authorized_user_gets_message(self, mock_send):
-        mock_conn, mock_cursor = _mock_cursor_returning({"user_id": 12345})  # already allowed
-        cfg = _make_config()
-        msg = {
-            "from": {"id": 12345},
-            "chat": {"id": 12345},
-            "text": "/start s3cret-password",
-        }
-        handle_message(msg, mock_conn, cfg)
-        mock_send.assert_called_once()
-        assert "already have access" in mock_send.call_args[0][1]
-
-    @patch("api.telegram.send_message")
-    def test_start_without_token_sends_invalid(self, mock_send):
-        mock_conn, mock_cursor = _mock_cursor_returning(None)
+        mock_conn, _ = _mock_cursor_returning({"user_id": 12345})  # already allowed
         cfg = _make_config()
         msg = {
             "from": {"id": 12345},
@@ -185,7 +174,7 @@ class TestStartAuthentication:
         }
         handle_message(msg, mock_conn, cfg)
         mock_send.assert_called_once()
-        assert "Invalid token" in mock_send.call_args[0][1]
+        assert "already have access" in mock_send.call_args[0][1]
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +198,7 @@ class TestCallbackFeedback:
     def test_positive_feedback_inserts_and_boosts_weights(self, mock_post):
         mock_cursor = MagicMock()
         # First fetchone: user exists
-        mock_cursor.fetchone.return_value = {"user_id": 123}
+        mock_cursor.fetchone.return_value = {"user_id": 123, "paused": False, "pause_until": None}
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -225,7 +214,7 @@ class TestCallbackFeedback:
     @patch("httpx.post")
     def test_negative_feedback_reduces_weights(self, mock_post):
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = {"user_id": 123}
+        mock_cursor.fetchone.return_value = {"user_id": 123, "paused": False, "pause_until": None}
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -238,7 +227,7 @@ class TestCallbackFeedback:
     @patch("httpx.post")
     def test_answers_callback_query(self, mock_post):
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = {"user_id": 123}
+        mock_cursor.fetchone.return_value = {"user_id": 123, "paused": False, "pause_until": None}
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)

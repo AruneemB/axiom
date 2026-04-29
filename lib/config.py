@@ -43,6 +43,9 @@ class Config:
     github_issue_labels: list[str]
     max_github_issues_per_day: int
 
+    # Security settings
+    telegram_ip_allowlist_enabled: bool
+
 
 def load_config() -> Config:
     def require(key: str) -> str:
@@ -90,4 +93,7 @@ def load_config() -> Config:
         github_repo_name=os.getenv("GITHUB_REPO_NAME", "axiom"),
         github_issue_labels=os.getenv("GITHUB_ISSUE_LABELS", "user-reported,needs-triage").split(","),
         max_github_issues_per_day=int(os.getenv("MAX_GITHUB_ISSUES_PER_DAY", "3")),
+
+        # Security settings
+        telegram_ip_allowlist_enabled=os.getenv("TELEGRAM_IP_ALLOWLIST_ENABLED", "false").lower() == "true",
     )

@@ -161,3 +161,18 @@ def sanitize_content(content: str) -> str:
     content = re.sub(r'\s+', ' ', content).strip()
 
     return content
+
+
+def validate_user_input(text: str) -> Tuple[bool, str]:
+    """
+    Lightweight check applied to all user messages (not just /report).
+    Enforces a length cap and blocks injection/malware patterns.
+    Profanity and spam checks are intentionally omitted — too noisy for chat.
+    """
+    if len(text) > 1000:
+        return False, "Message too long (max 1000 characters)."
+    if detect_injection_attempts(text):
+        return False, "Message contains potentially dangerous content."
+    if detect_malware_keywords(text):
+        return False, "Message contains suspicious content."
+    return True, ""
