@@ -37,8 +37,8 @@ class handler(BaseHTTPRequestHandler):
             print(f"[spark] UNHANDLED ERROR: {traceback.format_exc()}")
             try:
                 send_message(chat_id, "Something went wrong. Please try again in a moment.", cfg.telegram_bot_token)
-            except Exception:
-                pass
+            except Exception as notify_err:
+                print(f"[spark] failed to notify Telegram: {notify_err}")
             self._respond(500, {"error": str(e)})
         finally:
             conn.close()
