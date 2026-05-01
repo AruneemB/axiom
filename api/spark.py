@@ -60,7 +60,7 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
         model=cfg.default_model,
         api_key=cfg.openrouter_api_key,
         fallback_model=cfg.fallback_model,
-        timeout=cfg.openrouter_timeout,
+        timeout=cfg.deliver_llm_timeout,
     )
 
     if idea is None:
