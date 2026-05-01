@@ -1,9 +1,9 @@
 {
   "builds": [
-    { "src": "api/fetch.py",    "use": "@vercel/python" },
+    { "src": "api/fetch.py",    "use": "@vercel/python", "config": { "maxDuration": 60 } },
     { "src": "api/deliver.py",  "use": "@vercel/python", "config": { "maxDuration": 300 } },
     { "src": "api/telegram.py", "use": "@vercel/python" },
-    { "src": "api/spark.py",    "use": "@vercel/python" },
+    { "src": "api/spark.py",    "use": "@vercel/python", "config": { "maxDuration": 60 } },
     { "src": "api/status.py",   "use": "@vercel/python" },
     { "src": "api/papers.py",  "use": "@vercel/python" },
     { "src": "api/chat.py",    "use": "@vercel/python" },
