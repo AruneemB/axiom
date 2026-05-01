@@ -49,6 +49,7 @@ def run_fetch(cfg) -> dict:
     arxiv_papers = fetch_recent_papers(
         categories=cfg.arxiv_categories,
         max_results=cfg.arxiv_max_results,
+        hours=168,
     )
     papers.extend(arxiv_papers)
 
