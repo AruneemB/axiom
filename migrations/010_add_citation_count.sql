@@ -1,0 +1,1 @@
+ALTER TABLE papers ADD COLUMN IF NOT EXISTS citation_count INT;

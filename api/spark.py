@@ -106,20 +106,23 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
 
 
 def _find_paper_for_spark(conn, cfg) -> dict | None:
-    # Tier 1: Unprocessed papers in DB
+    # Tier 1: Unprocessed papers in DB (citation-boosted)
     with conn.cursor() as cur:
         cur.execute(
             """SELECT id, title, abstract, url
                FROM papers
                WHERE NOT processed AND NOT skipped
-               ORDER BY relevance_score DESC
-               LIMIT 1"""
+               ORDER BY (
+                 relevance_score + %s * LN(GREATEST(COALESCE(citation_count, 0) + 1, 1))
+               ) DESC
+               LIMIT 1""",
+            (cfg.citation_weight,),
         )
         paper = cur.fetchone()
     if paper:
         return paper
 
-    # Tier 1.5: Papers processed by deliver but not yet sparked on-demand
+    # Tier 1.5: Papers processed by deliver but not yet sparked on-demand (citation-boosted)
     with conn.cursor() as cur:
         cur.execute(
             """SELECT p.id, p.title, p.abstract, p.url
@@ -129,8 +132,11 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
                    SELECT 1 FROM ideas i
                    WHERE i.paper_id = p.id AND i.on_demand_by IS NOT NULL
                  )
-               ORDER BY p.relevance_score DESC
-               LIMIT 1"""
+               ORDER BY (
+                 p.relevance_score + %s * LN(GREATEST(COALESCE(p.citation_count, 0) + 1, 1))
+               ) DESC
+               LIMIT 1""",
+            (cfg.citation_weight,),
         )
         paper = cur.fetchone()
     if paper:

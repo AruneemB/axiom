@@ -51,13 +51,16 @@ def run_deliver(cfg) -> dict:
     conn = get_connection(cfg.database_url)
     try:
         with conn.cursor() as cur:
-            # Fetch the single highest-scored unprocessed paper
+            # Fetch the single highest-scored unprocessed paper (citation-boosted)
             cur.execute(
                 """SELECT id, title, abstract, url
                    FROM papers
                    WHERE NOT processed AND NOT skipped
-                   ORDER BY relevance_score DESC
+                   ORDER BY (
+                     relevance_score + %s * LN(GREATEST(COALESCE(citation_count, 0) + 1, 1))
+                   ) DESC
                    LIMIT 1""",
+                (cfg.citation_weight,),
             )
             paper = cur.fetchone()
 

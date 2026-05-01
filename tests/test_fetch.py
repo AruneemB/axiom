@@ -355,10 +355,11 @@ class TestRunFetchBelowThreshold:
 
 class TestRunFetchAboveThreshold:
 
+    @patch("api.fetch.fetch_citation_counts", return_value={})
     @patch("api.fetch.get_connection")
     @patch("api.fetch.RelevanceFilter")
     @patch("api.fetch.fetch_recent_papers")
-    def test_high_score_stored_normally(self, mock_fetch, mock_filter_cls, mock_conn):
+    def test_high_score_stored_normally(self, mock_fetch, mock_filter_cls, mock_conn, _mock_cit):
         mock_fetch.return_value = [_sample_paper()]
 
         mock_filter = MagicMock()
@@ -380,10 +381,11 @@ class TestRunFetchAboveThreshold:
 
 class TestRunFetchConnection:
 
+    @patch("api.fetch.fetch_citation_counts", return_value={})
     @patch("api.fetch.get_connection")
     @patch("api.fetch.RelevanceFilter")
     @patch("api.fetch.fetch_recent_papers")
-    def test_connection_committed_and_closed(self, mock_fetch, mock_filter_cls, mock_conn):
+    def test_connection_committed_and_closed(self, mock_fetch, mock_filter_cls, mock_conn, _mock_cit):
         mock_fetch.return_value = [_sample_paper()]
 
         mock_filter = MagicMock()
@@ -403,10 +405,11 @@ class TestRunFetchConnection:
         mock_conn_obj.commit.assert_called_once()
         mock_conn_obj.close.assert_called_once()
 
+    @patch("api.fetch.fetch_citation_counts", return_value={})
     @patch("api.fetch.get_connection")
     @patch("api.fetch.RelevanceFilter")
     @patch("api.fetch.fetch_recent_papers")
-    def test_uses_config_database_url(self, mock_fetch, mock_filter_cls, mock_conn):
+    def test_uses_config_database_url(self, mock_fetch, mock_filter_cls, mock_conn, _mock_cit):
         mock_fetch.return_value = [_sample_paper()]
 
         mock_filter = MagicMock()
@@ -428,10 +431,11 @@ class TestRunFetchConnection:
 
 class TestRunFetchFilterInit:
 
+    @patch("api.fetch.fetch_citation_counts", return_value={})
     @patch("api.fetch.get_connection")
     @patch("api.fetch.RelevanceFilter")
     @patch("api.fetch.fetch_recent_papers")
-    def test_filter_initialized_with_config(self, mock_fetch, mock_filter_cls, mock_conn):
+    def test_filter_initialized_with_config(self, mock_fetch, mock_filter_cls, mock_conn, _mock_cit):
         mock_fetch.return_value = [_sample_paper()]
 
         mock_filter = MagicMock()
@@ -465,10 +469,11 @@ class TestRunFetchFilterInit:
 
 class TestRunFetchFetchedCount:
 
+    @patch("api.fetch.fetch_citation_counts", return_value={})
     @patch("api.fetch.get_connection")
     @patch("api.fetch.RelevanceFilter")
     @patch("api.fetch.fetch_recent_papers")
-    def test_fetched_count_matches_total_papers(self, mock_fetch, mock_filter_cls, mock_conn):
+    def test_fetched_count_matches_total_papers(self, mock_fetch, mock_filter_cls, mock_conn, _mock_cit):
         papers = [_sample_paper(id=f"2401.{i:05d}") for i in range(5)]
         mock_fetch.return_value = papers
 
