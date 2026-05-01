@@ -104,9 +104,11 @@ vercel env add MAX_IDEAS_PER_DAY
 vercel env add GITHUB_TOKEN
 vercel env add GITHUB_REPO_OWNER
 vercel env add GITHUB_REPO_NAME
+vercel env add SEMANTIC_SCHOLAR_API_KEY
+vercel env add CITATION_WEIGHT
 ```
 
-Refer to `.env.example` for descriptions and sensible defaults for each variable.
+Refer to `.env.example` for descriptions and sensible defaults for each variable. `SEMANTIC_SCHOLAR_API_KEY` is optional — the Semantic Scholar API works without a key at 1 request/second. `CITATION_WEIGHT` defaults to `0.02` if omitted.
 
 4. Deploy:
 
@@ -183,10 +185,10 @@ curl -H "Authorization: Bearer YOUR_CRON_SECRET" "https://your-project.vercel.ap
 curl "https://your-project.vercel.app/api/fetch?key=YOUR_CRON_SECRET"
 ```
 
-Check that papers landed in the database:
+Check that papers landed in the database, including citation counts fetched from Semantic Scholar:
 
 ```sql
-SELECT id, title, relevance_score FROM papers ORDER BY fetched_at DESC LIMIT 5;
+SELECT id, title, relevance_score, citation_count FROM papers ORDER BY fetched_at DESC LIMIT 5;
 ```
 
 Trigger the deliver endpoint:
@@ -239,6 +241,8 @@ Change `DEFAULT_MODEL` and `DEEPDIVE_MODEL` to any model available on OpenRouter
 - `QUALITY_GATE_MIN` (default 13) — minimum combined novelty + feasibility score (out of 20)
 - `DEDUP_SIMILARITY_MAX` (default 0.80) — how similar a new idea can be to a previously sent one
 - `MAX_IDEAS_PER_DAY` (default 2) — cap on daily idea delivery
+- `CITATION_WEIGHT` (default 0.02) — weight of the log-scaled citation boost applied at paper selection; set to `0` to disable citation ranking entirely
+- `SEMANTIC_SCHOLAR_API_KEY` (optional) — Semantic Scholar API key; omit to use the shared anonymous rate limit (1 req/s), or provide a key for 10 req/s
 
 ### Monitoring
 

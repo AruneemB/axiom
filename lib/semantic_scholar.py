@@ -1,3 +1,4 @@
+import re
 import httpx
 
 BATCH_URL = "https://api.semanticscholar.org/graph/v1/paper/batch"
@@ -5,7 +6,7 @@ BATCH_URL = "https://api.semanticscholar.org/graph/v1/paper/batch"
 
 def _arxiv_id_to_ss_id(arxiv_id: str) -> str:
     """Convert a DB paper ID (e.g. '2406.12345v1') to Semantic Scholar format ('ArXiv:2406.12345')."""
-    base = arxiv_id.split("v")[0] if "v" in arxiv_id else arxiv_id
+    base = re.sub(r'v\d+$', '', arxiv_id)
     return f"ArXiv:{base.replace('_', '/')}"
 
 
