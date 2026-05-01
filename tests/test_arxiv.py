@@ -365,6 +365,30 @@ class TestFetchRecentPapersMalformedEntries:
 
         assert papers == []
 
+    @patch("lib.arxiv.httpx.get")
+    def test_timezone_naive_timestamp_skipped(self, mock_get):
+        """A published timestamp with no timezone info produces a naive datetime.
+        Comparing it to datetime.now(timezone.utc) raises TypeError, which must
+        be caught so the entry is skipped rather than aborting the whole fetch."""
+        naive_ts = "2025-01-01T00:00:00"  # no Z or +00:00 suffix
+        valid = _make_entry_xml(arxiv_id="2305.99999v1", title="Good Paper")
+        entry_with_naive = (
+            "<entry>"
+            "<id>http://arxiv.org/abs/2305.11111v1</id>"
+            "<title>Naive Timestamp Paper</title>"
+            "<summary>Abstract.</summary>"
+            "<author><name>Alice</name></author>"
+            '<category term="q-fin.ST"/>'
+            f"<published>{naive_ts}</published>"
+            "</entry>"
+        )
+        mock_get.return_value = _mock_response(_make_atom_xml(entry_with_naive + valid))
+
+        papers = fetch_recent_papers(["q-fin.ST"])
+
+        assert len(papers) == 1
+        assert papers[0].id == "2305.99999v1"
+
 
 class TestFetchRecentPapersHoursParameter:
 

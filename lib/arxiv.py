@@ -72,7 +72,7 @@ def fetch_recent_papers(categories: list[str], max_results: int = 50, hours: int
                 url=url,
                 published_at=published_at,
             ))
-        except (AttributeError, ValueError) as e:
+        except (AttributeError, ValueError, TypeError) as e:
             print(f"[arxiv] skipping malformed entry: {e}")
             continue
 
