@@ -1,6 +1,8 @@
 import json
 from http.server import BaseHTTPRequestHandler
 
+import psycopg2
+
 from lib.config import load_config
 from lib.db import get_connection
 from lib.openrouter import synthesize_idea
@@ -127,7 +129,7 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
             paper = cur.fetchone()
         if paper:
             return paper
-    except Exception as e:
+    except psycopg2.DatabaseError as e:
         conn.rollback()
         print(f"[spark] Tier 1 DB error, falling through: {e}")
 
@@ -152,7 +154,7 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
             paper = cur.fetchone()
         if paper:
             return paper
-    except Exception as e:
+    except psycopg2.DatabaseError as e:
         conn.rollback()
         print(f"[spark] Tier 1.5 DB error, falling through: {e}")
 
