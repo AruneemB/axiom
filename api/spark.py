@@ -1,6 +1,8 @@
 import json
 from http.server import BaseHTTPRequestHandler
 
+import psycopg2
+
 from lib.config import load_config
 from lib.db import get_connection
 from lib.openrouter import synthesize_idea
@@ -111,42 +113,53 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
 
 def _find_paper_for_spark(conn, cfg) -> dict | None:
     # Tier 1: Unprocessed papers in DB (citation-boosted)
-    with conn.cursor() as cur:
-        cur.execute(
-            """SELECT id, title, abstract, url
-               FROM papers
-               WHERE NOT processed AND NOT skipped
-               ORDER BY (
-                 relevance_score + %s * LN(GREATEST(COALESCE(citation_count, 0) + 1, 1))
-               ) DESC
-               LIMIT 1""",
-            (cfg.citation_weight,),
-        )
-        paper = cur.fetchone()
-    if paper:
-        return paper
+    print("[spark] Tier 1: querying DB for unprocessed papers")
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, title, abstract, url
+                   FROM papers
+                   WHERE NOT processed AND NOT skipped
+                   ORDER BY (
+                     relevance_score + %s * LN(GREATEST(COALESCE(citation_count, 0) + 1, 1))
+                   ) DESC
+                   LIMIT 1""",
+                (cfg.citation_weight,),
+            )
+            paper = cur.fetchone()
+        if paper:
+            return paper
+    except psycopg2.DatabaseError as e:
+        conn.rollback()
+        print(f"[spark] Tier 1 DB error, falling through: {e}")
 
     # Tier 1.5: Papers processed by deliver but not yet sparked on-demand (citation-boosted)
-    with conn.cursor() as cur:
-        cur.execute(
-            """SELECT p.id, p.title, p.abstract, p.url
-               FROM papers p
-               WHERE p.processed = TRUE AND p.skipped = FALSE
-                 AND NOT EXISTS (
-                   SELECT 1 FROM ideas i
-                   WHERE i.paper_id = p.id AND i.on_demand_by IS NOT NULL
-                 )
-               ORDER BY (
-                 p.relevance_score + %s * LN(GREATEST(COALESCE(p.citation_count, 0) + 1, 1))
-               ) DESC
-               LIMIT 1""",
-            (cfg.citation_weight,),
-        )
-        paper = cur.fetchone()
-    if paper:
-        return paper
+    print("[spark] Tier 1.5: querying DB for processed-but-not-on-demand papers")
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT p.id, p.title, p.abstract, p.url
+                   FROM papers p
+                   WHERE p.processed = TRUE AND p.skipped = FALSE
+                     AND NOT EXISTS (
+                       SELECT 1 FROM ideas i
+                       WHERE i.paper_id = p.id AND i.on_demand_by IS NOT NULL
+                     )
+                   ORDER BY (
+                     p.relevance_score + %s * LN(GREATEST(COALESCE(p.citation_count, 0) + 1, 1))
+                   ) DESC
+                   LIMIT 1""",
+                (cfg.citation_weight,),
+            )
+            paper = cur.fetchone()
+        if paper:
+            return paper
+    except psycopg2.DatabaseError as e:
+        conn.rollback()
+        print(f"[spark] Tier 1.5 DB error, falling through: {e}")
 
     # Tier 2: Expanded arXiv fetch (7-day window)
+    print("[spark] Tier 2: fetching fresh arXiv papers (7-day window)")
     arxiv_papers = fetch_recent_papers(
         categories=cfg.arxiv_categories,
         max_results=cfg.arxiv_max_results,
@@ -217,6 +230,7 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
             }
 
     # Tier 3: Re-evaluate skipped papers in DB against current topics
+    print("[spark] Tier 3: re-evaluating skipped papers")
     with conn.cursor() as cur:
         cur.execute(
             """SELECT id, title, abstract, url
