@@ -36,77 +36,86 @@ def check_burst_limit(user_id: int, conn) -> Tuple[bool, str]:
     """
     Return (True, "") if the user is within the burst limit,
     (False, msg) if they have exceeded it.
-    Inserts a tracking row on success (commit immediately).
+    Fails open on any DB error so a missing migration never silences the bot.
     """
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT COUNT(*) AS cnt
-            FROM rate_limit_events
-            WHERE user_id = %s
-              AND command = '__burst__'
-              AND ts > NOW() - INTERVAL '60 seconds'
-            """,
-            (user_id,),
-        )
-        cnt = cur.fetchone()["cnt"]
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM rate_limit_events
+                WHERE user_id = %s
+                  AND command = '__burst__'
+                  AND ts > NOW() - INTERVAL '60 seconds'
+                """,
+                (user_id,),
+            )
+            cnt = cur.fetchone()["cnt"]
 
-    if cnt >= BURST_LIMIT:
-        return False, "Too many messages. Please slow down."
+        if cnt >= BURST_LIMIT:
+            return False, "Too many messages. Please slow down."
 
-    with conn.cursor() as cur:
-        cur.execute(
-            "INSERT INTO rate_limit_events (user_id, command) VALUES (%s, %s)",
-            (user_id, "__burst__"),
-        )
-    conn.commit()
-    return True, ""
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO rate_limit_events (user_id, command) VALUES (%s, %s)",
+                (user_id, "__burst__"),
+            )
+        conn.commit()
+        return True, ""
+    except Exception:
+        return True, ""
 
 
 def check_global_rate_limit(user_id: int, command: str, conn) -> Tuple[bool, str]:
     """
     Return (True, "") if the user is within the hourly limit for command,
     (False, msg) if they have exceeded it.
-    Inserts a tracking row on success (commit immediately).
+    Fails open on any DB error so a missing migration never silences the bot.
     """
-    limit = COMMAND_LIMITS.get(command, DEFAULT_LIMIT)
+    try:
+        limit = COMMAND_LIMITS.get(command, DEFAULT_LIMIT)
 
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT COUNT(*) AS cnt
-            FROM rate_limit_events
-            WHERE user_id = %s
-              AND command = %s
-              AND ts > NOW() - INTERVAL '1 hour'
-            """,
-            (user_id, command),
-        )
-        cnt = cur.fetchone()["cnt"]
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM rate_limit_events
+                WHERE user_id = %s
+                  AND command = %s
+                  AND ts > NOW() - INTERVAL '1 hour'
+                """,
+                (user_id, command),
+            )
+            cnt = cur.fetchone()["cnt"]
 
-    if cnt >= limit:
-        return False, f"You've reached the limit for this command ({limit}/hour). Please wait before trying again."
+        if cnt >= limit:
+            return False, f"You've reached the limit for this command ({limit}/hour). Please wait before trying again."
 
-    with conn.cursor() as cur:
-        cur.execute(
-            "INSERT INTO rate_limit_events (user_id, command) VALUES (%s, %s)",
-            (user_id, command),
-        )
-    conn.commit()
-    return True, ""
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO rate_limit_events (user_id, command) VALUES (%s, %s)",
+                (user_id, command),
+            )
+        conn.commit()
+        return True, ""
+    except Exception:
+        return True, ""
 
 
 def record_violation(user_id: int, violation_type: str, conn) -> None:
     """Persist an abuse event to rate_limit_events for suspension tracking."""
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO rate_limit_events (user_id, command, violation_type)
-            VALUES (%s, %s, %s)
-            """,
-            (user_id, "", violation_type),
-        )
-    conn.commit()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO rate_limit_events (user_id, command, violation_type)
+                VALUES (%s, %s, %s)
+                """,
+                (user_id, "", violation_type),
+            )
+        conn.commit()
+    except Exception:
+        pass
 
 
 def check_auto_suspend(user_id: int, conn) -> bool:
@@ -117,44 +126,50 @@ def check_auto_suspend(user_id: int, conn) -> bool:
     Returns True only when THIS call triggers the suspension (so the
     caller can send exactly one notification message).
     """
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT COUNT(*) AS cnt
-            FROM rate_limit_events
-            WHERE user_id = %s
-              AND violation_type IS NOT NULL
-              AND ts > NOW() - INTERVAL '24 hours'
-            """,
-            (user_id,),
-        )
-        cnt = cur.fetchone()["cnt"]
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS cnt
+                FROM rate_limit_events
+                WHERE user_id = %s
+                  AND violation_type IS NOT NULL
+                  AND ts > NOW() - INTERVAL '24 hours'
+                """,
+                (user_id,),
+            )
+            cnt = cur.fetchone()["cnt"]
 
-    if cnt < VIOLATION_THRESHOLD:
+        if cnt < VIOLATION_THRESHOLD:
+            return False
+
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE allowed_users
+                   SET paused = TRUE,
+                       pause_until = NOW() + INTERVAL '1 hour'
+                 WHERE user_id = %s
+                   AND (pause_until IS NULL OR pause_until < NOW())
+                """,
+                (user_id,),
+            )
+            triggered = cur.rowcount == 1
+        conn.commit()
+        return triggered
+    except Exception:
         return False
-
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            UPDATE allowed_users
-               SET paused = TRUE,
-                   pause_until = NOW() + INTERVAL '1 hour'
-             WHERE user_id = %s
-               AND (pause_until IS NULL OR pause_until < NOW())
-            """,
-            (user_id,),
-        )
-        triggered = cur.rowcount == 1
-    conn.commit()
-    return triggered
 
 
 def purge_old_events(conn) -> int:
     """Delete rate_limit_events older than 48 hours. Returns row count removed."""
-    with conn.cursor() as cur:
-        cur.execute(
-            "DELETE FROM rate_limit_events WHERE ts < NOW() - INTERVAL '48 hours'"
-        )
-        removed = cur.rowcount
-    conn.commit()
-    return removed
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM rate_limit_events WHERE ts < NOW() - INTERVAL '48 hours'"
+            )
+            removed = cur.rowcount
+        conn.commit()
+        return removed
+    except Exception:
+        return 0
