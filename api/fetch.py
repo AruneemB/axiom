@@ -6,6 +6,7 @@ from lib.arxiv import fetch_recent_papers
 from lib.rss import fetch_rss_papers
 from lib.filter import RelevanceFilter
 from lib.db import get_connection
+from lib.semantic_scholar import fetch_citation_counts
 from scripts.sync_topics import sync_topic_weights
 
 
@@ -88,6 +89,7 @@ def run_fetch(cfg) -> dict:
     # Ensure all topics from ALLOWED_TOPICS exist in topic_weights
     sync_topic_weights(conn, cfg.allowed_topics)
 
+    newly_stored_ids = []
     with conn.cursor() as cur:
         for paper in papers:
             # Skip if already in DB
@@ -120,15 +122,34 @@ def run_fetch(cfg) -> dict:
                      score, keyword_hits),
                 )
                 stored += 1
+                newly_stored_ids.append(paper.id)
 
             # Commit each paper individually to prevent rollback on timeout
             conn.commit()
+
+    # Batch-enrich newly stored papers with citation counts from Semantic Scholar
+    citation_counts_fetched = 0
+    if newly_stored_ids:
+        citation_counts = fetch_citation_counts(
+            newly_stored_ids,
+            api_key=cfg.semantic_scholar_api_key,
+        )
+        if citation_counts:
+            with conn.cursor() as cur:
+                for paper_id, count in citation_counts.items():
+                    cur.execute(
+                        "UPDATE papers SET citation_count = %s WHERE id = %s",
+                        (count, paper_id),
+                    )
+                conn.commit()
+            citation_counts_fetched = len(citation_counts)
 
     conn.close()
     return {
         "fetched": len(papers),
         "stored": stored,
         "skipped": skipped,
+        "citation_counts_fetched": citation_counts_fetched,
         "details": {
             "skipped": skipped_details
         }

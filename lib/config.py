@@ -46,6 +46,10 @@ class Config:
     # Security settings
     telegram_ip_allowlist_enabled: bool
 
+    # Semantic Scholar enrichment
+    semantic_scholar_api_key: str
+    citation_weight: float
+
 
 def load_config() -> Config:
     def require(key: str) -> str:
@@ -96,4 +100,8 @@ def load_config() -> Config:
 
         # Security settings
         telegram_ip_allowlist_enabled=os.getenv("TELEGRAM_IP_ALLOWLIST_ENABLED", "false").lower() == "true",
+
+        # Semantic Scholar enrichment
+        semantic_scholar_api_key=os.getenv("SEMANTIC_SCHOLAR_API_KEY", ""),
+        citation_weight=float(os.getenv("CITATION_WEIGHT", "0.02")),
     )
