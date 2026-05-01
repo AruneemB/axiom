@@ -44,32 +44,36 @@ def fetch_recent_papers(categories: list[str], max_results: int = 50, hours: int
     papers = []
 
     for entry in root.findall("atom:entry", ns):
-        raw_id = entry.find("atom:id", ns).text.strip()
-        arxiv_id = raw_id.split("/abs/")[-1].replace("/", "_")
+        try:
+            raw_id = entry.find("atom:id", ns).text.strip()
+            arxiv_id = raw_id.split("/abs/")[-1].replace("/", "_")
 
-        published_str = entry.find("atom:published", ns).text.strip()
-        published_at = datetime.fromisoformat(published_str.replace("Z", "+00:00"))
+            published_str = entry.find("atom:published", ns).text.strip()
+            published_at = datetime.fromisoformat(published_str.replace("Z", "+00:00"))
 
-        if published_at < datetime.now(timezone.utc) - timedelta(hours=hours):
+            if published_at < datetime.now(timezone.utc) - timedelta(hours=hours):
+                continue
+
+            title = entry.find("atom:title", ns).text.strip().replace("\n", " ")
+            abstract = entry.find("atom:summary", ns).text.strip().replace("\n", " ")
+            authors = [
+                a.find("atom:name", ns).text
+                for a in entry.findall("atom:author", ns)
+            ]
+            categories_list = [t.attrib.get("term", "") for t in entry.findall("atom:category", ns)]
+            url = f"https://arxiv.org/abs/{arxiv_id.replace('_', '/')}"
+
+            papers.append(ArxivPaper(
+                id=arxiv_id,
+                title=title,
+                abstract=abstract,
+                authors=authors,
+                categories=categories_list,
+                url=url,
+                published_at=published_at,
+            ))
+        except (AttributeError, ValueError) as e:
+            print(f"[arxiv] skipping malformed entry: {e}")
             continue
-
-        title = entry.find("atom:title", ns).text.strip().replace("\n", " ")
-        abstract = entry.find("atom:summary", ns).text.strip().replace("\n", " ")
-        authors = [
-            a.find("atom:name", ns).text
-            for a in entry.findall("atom:author", ns)
-        ]
-        categories_list = [t.attrib.get("term", "") for t in entry.findall("atom:category", ns)]
-        url = f"https://arxiv.org/abs/{arxiv_id.replace('_', '/')}"
-
-        papers.append(ArxivPaper(
-            id=arxiv_id,
-            title=title,
-            abstract=abstract,
-            authors=authors,
-            categories=categories_list,
-            url=url,
-            published_at=published_at,
-        ))
 
     return papers

@@ -78,7 +78,7 @@ def load_config() -> Config:
         dedup_similarity_max=float(os.getenv("DEDUP_SIMILARITY_MAX", "0.80")),
         embedding_model=os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small"),
         max_ideas_per_day=int(os.getenv("MAX_IDEAS_PER_DAY", "2")),
-        openrouter_timeout=int(os.getenv("OPENROUTER_TIMEOUT", "90")),
+        openrouter_timeout=int(os.getenv("OPENROUTER_TIMEOUT", "50")),
         deliver_llm_timeout=int(os.getenv("DELIVER_LLM_TIMEOUT", "50")),
 
         # Chat feature

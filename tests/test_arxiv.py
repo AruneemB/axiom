@@ -319,13 +319,51 @@ class TestFetchRecentPapersApiCall:
         mock_get.return_value.raise_for_status.assert_called_once()
 
     @patch("lib.arxiv.httpx.get")
-    def test_http_error_propagates(self, mock_get):
+    def test_http_error_returns_empty_list(self, mock_get):
         mock_get.return_value.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Server Error", request=MagicMock(), response=MagicMock()
         )
 
-        with pytest.raises(httpx.HTTPStatusError):
-            fetch_recent_papers(["q-fin.ST"])
+        papers = fetch_recent_papers(["q-fin.ST"])
+        assert papers == []
+
+
+class TestFetchRecentPapersMalformedEntries:
+
+    @patch("lib.arxiv.httpx.get")
+    def test_malformed_entry_skipped_valid_entry_returned(self, mock_get):
+        """A malformed entry missing <id> should be skipped; the valid entry after it is returned."""
+        recent_dt = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        malformed = (
+            "<entry>"
+            "<title>Broken Entry</title>"
+            "<summary>Abstract.</summary>"
+            f"<published>{recent_dt}</published>"
+            "</entry>"
+        )
+        valid = _make_entry_xml(arxiv_id="2305.99999v1", title="Good Paper")
+        mock_get.return_value = _mock_response(_make_atom_xml(malformed + valid))
+
+        papers = fetch_recent_papers(["q-fin.ST"])
+
+        assert len(papers) == 1
+        assert papers[0].id == "2305.99999v1"
+
+    @patch("lib.arxiv.httpx.get")
+    def test_all_malformed_entries_returns_empty(self, mock_get):
+        """All malformed entries should be skipped, returning an empty list without raising."""
+        recent_dt = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        malformed = (
+            "<entry>"
+            "<title>Broken Entry</title>"
+            f"<published>{recent_dt}</published>"
+            "</entry>"
+        )
+        mock_get.return_value = _mock_response(_make_atom_xml(malformed))
+
+        papers = fetch_recent_papers(["q-fin.ST"])
+
+        assert papers == []
 
 
 class TestFetchRecentPapersHoursParameter:
