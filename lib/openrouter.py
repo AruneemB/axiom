@@ -203,18 +203,33 @@ def expand_idea(
         return None, f"parse error ({type(exc).__name__}): {exc}, raw={content[:300]}"
 
 
-def _validate_expand(raw: dict) -> Optional[dict]:
+def _validate_expand(raw) -> Optional[dict]:
+    if not isinstance(raw, dict):
+        return None
     required = {"pseudocode", "statistical_tests", "timeline", "risk_factors"}
     if not required.issubset(raw.keys()):
         return None
-    if not isinstance(raw["statistical_tests"], list) or not raw["statistical_tests"]:
+    if not isinstance(raw["statistical_tests"], list) or not isinstance(raw["timeline"], list):
         return None
-    if not isinstance(raw["timeline"], list) or not raw["timeline"]:
+
+    tests = [
+        t for t in raw["statistical_tests"]
+        if isinstance(t, dict) and {"test", "rationale", "threshold"}.issubset(t.keys())
+    ]
+    if not tests:
         return None
+
+    timeline = [
+        p for p in raw["timeline"]
+        if isinstance(p, dict) and {"phase", "weeks", "tasks"}.issubset(p.keys())
+    ]
+    if not timeline:
+        return None
+
     return {
         "pseudocode": str(raw["pseudocode"]).strip(),
-        "statistical_tests": raw["statistical_tests"],
-        "timeline": raw["timeline"],
+        "statistical_tests": tests,
+        "timeline": timeline,
         "risk_factors": str(raw["risk_factors"]).strip(),
     }
 
