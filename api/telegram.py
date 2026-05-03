@@ -136,9 +136,9 @@ def handle_message(msg: dict, conn, cfg, req_ip: str = "unknown"):
         send_message(chat_id, val_msg, cfg.telegram_bot_token)
         return
 
-    # Universal command rate limit (/chat and /report have their own sub-systems)
+    # Universal command rate limit (/chat, /report, /expand have their own sub-systems)
     command = text.split()[0] if text.startswith("/") else "text"
-    if command not in ("/chat", "/report"):
+    if command not in ("/chat", "/report", "/expand"):
         allowed, rl_msg = check_global_rate_limit(user_id, command, conn)
         if not allowed:
             log_security_event(conn, EVT_RATE_LIMITED, user_id=user_id,
@@ -560,6 +560,14 @@ def handle_expand(user_id: int, chat_id: int, text: str, conn, cfg):
 
     if row["expanded_sketch"]:
         send_message(chat_id, _format_expand(idea_id, row["expanded_sketch"]), cfg.telegram_bot_token)
+        return
+
+    # Rate-limit only on cache miss — cached hits are read-only and don't consume quota
+    allowed, rl_msg = check_global_rate_limit(
+        user_id, "/expand", conn, override_limit=cfg.expand_rate_limit_per_hour
+    )
+    if not allowed:
+        send_message(chat_id, rl_msg, cfg.telegram_bot_token)
         return
 
     send_message(chat_id, f"Generating deep-dive for idea #{idea_id}...", cfg.telegram_bot_token)

@@ -7,7 +7,7 @@ All state is persisted in the rate_limit_events table so limits
 survive serverless cold starts.
 """
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 # Per-command hourly message limits.
 # /chat and /report are NOT listed — they have their own subsystems.
@@ -67,14 +67,17 @@ def check_burst_limit(user_id: int, conn) -> Tuple[bool, str]:
         return True, ""
 
 
-def check_global_rate_limit(user_id: int, command: str, conn) -> Tuple[bool, str]:
+def check_global_rate_limit(
+    user_id: int, command: str, conn, override_limit: Optional[int] = None
+) -> Tuple[bool, str]:
     """
     Return (True, "") if the user is within the hourly limit for command,
     (False, msg) if they have exceeded it.
     Fails open on any DB error so a missing migration never silences the bot.
+    override_limit, when provided, takes precedence over COMMAND_LIMITS.
     """
     try:
-        limit = COMMAND_LIMITS.get(command, DEFAULT_LIMIT)
+        limit = override_limit if override_limit is not None else COMMAND_LIMITS.get(command, DEFAULT_LIMIT)
 
         with conn.cursor() as cur:
             cur.execute(
