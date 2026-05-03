@@ -153,7 +153,7 @@ def expand_idea(
             )
             response.raise_for_status()
             break
-        except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
+        except (httpx.RequestError, httpx.HTTPStatusError) as e:
             last_error = str(e)
             if attempt < max_retries:
                 time.sleep(2 ** attempt)
@@ -182,7 +182,7 @@ def expand_idea(
                     )
                     response.raise_for_status()
                     break
-                except Exception as fe:
+                except (httpx.RequestError, httpx.HTTPStatusError) as fe:
                     return None, f"Primary failed ({last_error}) and fallback failed: {str(fe)}"
 
             return None, f"Max retries reached. Last error: {last_error}"
