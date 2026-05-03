@@ -25,7 +25,7 @@ from lib.audit_logger import (
     EVT_BURST_BLOCKED, EVT_IP_REJECTED,
 )
 
-COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback", "/spark", "/chat", "/context", "/report"}
+COMMANDS = {"/start", "/status", "/topics", "/pause", "/resume", "/feedback", "/spark", "/chat", "/context", "/report", "/expand"}
 
 
 class handler(BaseHTTPRequestHandler):
@@ -136,9 +136,9 @@ def handle_message(msg: dict, conn, cfg, req_ip: str = "unknown"):
         send_message(chat_id, val_msg, cfg.telegram_bot_token)
         return
 
-    # Universal command rate limit (/chat and /report have their own sub-systems)
+    # Universal command rate limit (/chat, /report, /expand have their own sub-systems)
     command = text.split()[0] if text.startswith("/") else "text"
-    if command not in ("/chat", "/report"):
+    if command not in ("/chat", "/report", "/expand"):
         allowed, rl_msg = check_global_rate_limit(user_id, command, conn)
         if not allowed:
             log_security_event(conn, EVT_RATE_LIMITED, user_id=user_id,
@@ -166,6 +166,8 @@ def handle_message(msg: dict, conn, cfg, req_ip: str = "unknown"):
         handle_context(user_id, chat_id, conn, cfg)
     elif text.startswith("/report"):
         handle_report(user_id, chat_id, text, msg, conn, cfg)
+    elif text.startswith("/expand"):
+        handle_expand(user_id, chat_id, text, conn, cfg)
 
 
 def _check_and_apply_auto_suspend(user_id: int, chat_id: int, conn, cfg) -> None:
@@ -525,3 +527,100 @@ def handle_report(user_id: int, chat_id: int, text: str, msg_obj: dict, conn, cf
         conn.commit()
 
     send_message(chat_id, f"Issue #{issue['number']} created successfully.\n{issue['html_url']}", cfg.telegram_bot_token)
+
+
+def handle_expand(user_id: int, chat_id: int, text: str, conn, cfg):
+    from lib.openrouter import expand_idea
+
+    if not cfg.expand_enabled:
+        send_message(chat_id, "Deep-dive synthesis is currently disabled.", cfg.telegram_bot_token)
+        return
+
+    parts = text.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        send_message(chat_id, "Usage: /expand {idea_id}\nExample: /expand 42", cfg.telegram_bot_token)
+        return
+
+    idea_id = int(parts[1])
+
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT i.id, i.hypothesis, i.method, i.dataset,
+                   i.expanded_sketch, i.expanded_at,
+                   p.title, p.abstract
+            FROM ideas i
+            JOIN papers p ON i.paper_id = p.id
+            WHERE i.id = %s
+        """, (idea_id,))
+        row = cur.fetchone()
+
+    if not row:
+        send_message(chat_id, f"Idea #{idea_id} not found.", cfg.telegram_bot_token)
+        return
+
+    if row["expanded_sketch"]:
+        send_message(chat_id, _format_expand(idea_id, row["expanded_sketch"]), cfg.telegram_bot_token)
+        return
+
+    # Rate-limit only on cache miss — cached hits are read-only and don't consume quota
+    allowed, rl_msg = check_global_rate_limit(
+        user_id, "/expand", conn, override_limit=cfg.expand_rate_limit_per_hour
+    )
+    if not allowed:
+        send_message(chat_id, rl_msg, cfg.telegram_bot_token)
+        return
+
+    send_message(chat_id, f"Generating deep-dive for idea #{idea_id}...", cfg.telegram_bot_token)
+
+    sketch, err = expand_idea(
+        title=row["title"],
+        abstract=row["abstract"],
+        hypothesis=row["hypothesis"],
+        method=row["method"],
+        dataset=row["dataset"],
+        model=cfg.expand_model,
+        api_key=cfg.openrouter_api_key,
+        fallback_model=cfg.fallback_model,
+        timeout=cfg.expand_timeout,
+    )
+
+    if sketch is None:
+        send_message(chat_id, "Could not generate deep-dive. Please try again later.", cfg.telegram_bot_token)
+        return
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "UPDATE ideas SET expanded_sketch = %s, expanded_at = NOW() WHERE id = %s",
+            (json.dumps(sketch), idea_id),
+        )
+    conn.commit()
+
+    send_message(chat_id, _format_expand(idea_id, sketch), cfg.telegram_bot_token)
+
+
+def _format_expand(idea_id: int, sketch: dict) -> str:
+    MAX_CODE = 1100
+    MAX_TESTS = 900
+    MAX_TIMELINE = 900
+    MAX_RISKS = 600
+
+    def _trunc(text: str, limit: int) -> str:
+        return text if len(text) <= limit else text[:limit - 1] + "…"
+
+    tests_lines = "\n".join(
+        f"• {t.get('test', '')} — {t.get('rationale', '')} ({t.get('threshold', '')})"
+        for t in sketch.get("statistical_tests", [])
+    )
+
+    timeline_lines = "\n".join(
+        f"Phase {i + 1} – {p.get('phase', '')} ({p.get('weeks', '?')} wk): {p.get('tasks', '')}"
+        for i, p in enumerate(sketch.get("timeline", []))
+    )
+
+    return (
+        f"Deep-Dive: Idea #{idea_id}\n"
+        f"\n[Pseudocode]\n{_trunc(sketch.get('pseudocode', ''), MAX_CODE)}"
+        f"\n\n[Statistical Tests]\n{_trunc(tests_lines, MAX_TESTS)}"
+        f"\n\n[Implementation Timeline]\n{_trunc(timeline_lines, MAX_TIMELINE)}"
+        f"\n\n[Risk Factors]\n{_trunc(sketch.get('risk_factors', ''), MAX_RISKS)}"
+    )

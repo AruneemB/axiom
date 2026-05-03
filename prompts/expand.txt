@@ -1,0 +1,37 @@
+Below is a quantitative finance research idea derived from an academic paper. Your task is to generate a full implementation sketch that a practitioner could use to begin coding and testing this idea.
+
+Paper title: {title}
+
+Abstract:
+{abstract}
+
+Research Idea:
+Hypothesis: {hypothesis}
+Method: {method}
+Dataset: {dataset}
+
+Produce a detailed research sketch with these four components:
+
+1. pseudocode — Numbered implementation steps written as clear algorithmic pseudocode. Cover: data loading and cleaning, signal computation, portfolio construction, performance evaluation. Be specific enough that a quant developer could translate each step directly to code.
+
+2. statistical_tests — A list of 3-5 statistical tests appropriate for validating this strategy. For each test include: the test name, why it applies to this specific idea, and the acceptance threshold.
+
+3. timeline — A phased implementation plan with at least these phases: Data Acquisition, Signal Construction, Backtesting, Robustness Checks. For each phase include: phase name, estimated duration in weeks (integer), and the key tasks for that phase.
+
+4. risk_factors — A concise prose paragraph (3-5 sentences) covering the key risks, failure modes, data pitfalls, and known limitations specific to this idea.
+
+Respond ONLY with this JSON structure. No preamble, no markdown fences around the outer object:
+{
+  "pseudocode": "1. ...\n2. ...\n3. ...",
+  "statistical_tests": [
+    {"test": "...", "rationale": "...", "threshold": "..."},
+    {"test": "...", "rationale": "...", "threshold": "..."}
+  ],
+  "timeline": [
+    {"phase": "Data Acquisition", "weeks": 1, "tasks": "..."},
+    {"phase": "Signal Construction", "weeks": 2, "tasks": "..."},
+    {"phase": "Backtesting", "weeks": 2, "tasks": "..."},
+    {"phase": "Robustness Checks", "weeks": 1, "tasks": "..."}
+  ],
+  "risk_factors": "..."
+}
