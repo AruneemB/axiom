@@ -20,6 +20,7 @@ COMMAND_LIMITS: dict[str, int] = {
     "/feedback": 30,
     "/context":  30,
     "/spark":     6,  # safety net; the 10-min spark check still runs too
+    "/expand":    3,  # more expensive than /spark; cached hits don't count
     "callback":  60,
     "text":      30,
 }

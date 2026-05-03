@@ -25,6 +25,10 @@ class Config:
     max_ideas_per_day: int
     openrouter_timeout: int
     deliver_llm_timeout: int
+    expand_enabled: bool
+    expand_model: str
+    expand_timeout: int
+    expand_rate_limit_per_hour: int
 
     # Chat feature settings
     chat_enabled: bool
@@ -80,6 +84,10 @@ def load_config() -> Config:
         max_ideas_per_day=int(os.getenv("MAX_IDEAS_PER_DAY", "2")),
         openrouter_timeout=int(os.getenv("OPENROUTER_TIMEOUT", "25")),
         deliver_llm_timeout=int(os.getenv("DELIVER_LLM_TIMEOUT", "50")),
+        expand_enabled=os.getenv("EXPAND_ENABLED", "true").lower() == "true",
+        expand_model=os.getenv("EXPAND_MODEL", "anthropic/claude-3-5-haiku-20241022"),
+        expand_timeout=int(os.getenv("EXPAND_TIMEOUT", "90")),
+        expand_rate_limit_per_hour=int(os.getenv("EXPAND_RATE_LIMIT_PER_HOUR", "3")),
 
         # Chat feature
         chat_enabled=os.getenv("CHAT_ENABLED", "true").lower() == "true",
