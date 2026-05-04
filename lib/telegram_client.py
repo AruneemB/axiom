@@ -34,6 +34,7 @@ def send_idea_message(
     url: str,
     idea: dict,
     bot_token: str,
+    expand_enabled: bool = False,
 ):
     n = idea["novelty_score"]
     f = idea["feasibility_score"]
@@ -49,13 +50,14 @@ def send_idea_message(
         f"`{score_bar}`"
     )
 
-    inline_keyboard = {
-        "inline_keyboard": [[
-            {"text": "\U0001F44D Interesting", "callback_data": f"feedback:{idea_id}:1"},
-            {"text": "\U0001F44E Skip", "callback_data": f"feedback:{idea_id}:-1"},
-            {"text": "\U0001F4C4 Paper", "url": url},
-        ]]
-    }
+    rows = [[
+        {"text": "\U0001F44D Interesting", "callback_data": f"feedback:{idea_id}:1"},
+        {"text": "\U0001F44E Skip", "callback_data": f"feedback:{idea_id}:-1"},
+        {"text": "\U0001F4C4 Paper", "url": url},
+    ]]
+    if expand_enabled:
+        rows.append([{"text": "\U0001F52C Expand", "callback_data": f"expand:{idea_id}"}])
+    inline_keyboard = {"inline_keyboard": rows}
 
     text = _sanitize(text)
 

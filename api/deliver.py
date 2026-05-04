@@ -178,6 +178,7 @@ def run_deliver(cfg) -> dict:
                     url=url,
                     idea=idea,
                     bot_token=cfg.telegram_bot_token,
+                    expand_enabled=cfg.expand_enabled,
                 )
                 print(f"[deliver] sent to user {user_id}")
             except Exception as e:
