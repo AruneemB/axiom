@@ -211,8 +211,16 @@ def handle_callback(cb: dict, conn, cfg, req_ip: str = "unknown"):
             _check_and_apply_auto_suspend(user_id, cb_chat_id, conn, cfg)
         return
 
-    # Expected data format: "feedback:{idea_id}:{value}" where value is 1 or -1
-    if data.startswith("feedback:"):
+    chat_id = cb.get("message", {}).get("chat", {}).get("id")
+
+    # Expected data formats:
+    #   "feedback:{idea_id}:{value}" where value is 1 or -1
+    #   "expand:{idea_id}"
+    if data.startswith("expand:"):
+        parts = data.split(":")
+        if len(parts) == 2 and parts[1].isdigit():
+            handle_expand(user_id, chat_id, f"/expand {parts[1]}", conn, cfg)
+    elif data.startswith("feedback:"):
         _, idea_id_str, value_str = data.split(":")
         idea_id = int(idea_id_str)
         value = int(value_str)
