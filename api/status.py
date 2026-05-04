@@ -1,5 +1,6 @@
 import json
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
 
 from lib.config import load_config
 from lib.db import get_connection
@@ -8,36 +9,105 @@ from lib.db import get_connection
 class handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
-        try:
-            cfg = load_config()
-            conn = get_connection(cfg.database_url)
-            with conn.cursor() as cur:
-                cur.execute(
-                    """SELECT
-                        (SELECT COUNT(*) FROM papers) AS total_papers,
-                        (SELECT COUNT(*) FROM ideas) AS total_ideas,
-                        (SELECT MAX(fetched_at) FROM papers) AS last_fetch,
-                        (SELECT MAX(sent_at) FROM ideas) AS last_deliver"""
-                )
-                row = cur.fetchone()
-            conn.close()
+        cfg = load_config()
 
-            body = {
-                "status": "active",
-                "total_papers": row["total_papers"],
-                "total_ideas": row["total_ideas"],
-                "last_fetch": row["last_fetch"].isoformat() if row["last_fetch"] else None,
-                "last_deliver": row["last_deliver"].isoformat() if row["last_deliver"] else None,
-            }
-            self._respond(200, body)
+        params = parse_qs(urlparse(self.path).query)
+        auth_header = self.headers.get("Authorization", "")
+        bearer_token = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else None
+        key_param = params.get("key", [None])[0]
+        authenticated = cfg.cron_secret in (bearer_token, key_param)
+
+        try:
+            result = run_status(cfg)
+            if not authenticated:
+                result.pop("config", None)
+            self._respond(200, result)
         except Exception as e:
-            self._respond(500, {"status": "error", "error": str(e)})
+            import traceback
+            print(f"[status] ERROR: {traceback.format_exc()}")
+            self._respond(500, {"error": str(e)})
 
     def _respond(self, status: int, body: dict):
-        payload = json.dumps(body).encode()
+        payload = json.dumps(body, default=str).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", len(payload))
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(payload)
+
+
+def run_status(cfg) -> dict:
+    conn = get_connection(cfg.database_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS n FROM papers")
+            total = cur.fetchone()["n"]
+
+            cur.execute("SELECT COUNT(*) AS n FROM papers WHERE NOT processed AND NOT skipped")
+            available = cur.fetchone()["n"]
+
+            cur.execute("SELECT COUNT(*) AS n FROM papers WHERE processed = TRUE")
+            processed = cur.fetchone()["n"]
+
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM papers WHERE skipped = TRUE AND skip_reason = 'below_relevance_threshold'"
+            )
+            skipped_relevance = cur.fetchone()["n"]
+
+            cur.execute(
+                "SELECT COUNT(*) AS n FROM papers WHERE skipped = TRUE AND skip_reason != 'below_relevance_threshold'"
+            )
+            skipped_other = cur.fetchone()["n"]
+
+            cur.execute("SELECT MAX(published_at) AS latest FROM papers")
+            latest_published = cur.fetchone()["latest"]
+
+            cur.execute("SELECT COUNT(*) AS n FROM ideas")
+            total_ideas = cur.fetchone()["n"]
+
+            cur.execute("SELECT MAX(sent_at) AS last FROM ideas")
+            last_deliver = cur.fetchone()["last"]
+
+            cur.execute("SELECT COUNT(*) AS n FROM allowed_users")
+            users_total = cur.fetchone()["n"]
+
+            cur.execute(
+                """SELECT COUNT(*) AS n FROM allowed_users
+                   WHERE NOT paused OR (paused AND pause_until < NOW())"""
+            )
+            users_active = cur.fetchone()["n"]
+
+        return {
+            "status": "active",
+            "total_papers": total,
+            "total_ideas": total_ideas,
+            "last_fetch": latest_published,
+            "last_deliver": last_deliver,
+            "papers": {
+                "total": total,
+                "available": available,
+                "processed": processed,
+                "skipped_relevance": skipped_relevance,
+                "skipped_other": skipped_other,
+                "latest_published": latest_published,
+            },
+            "ideas": {
+                "total": total_ideas,
+                "last_deliver": last_deliver,
+            },
+            "users": {
+                "total": users_total,
+                "active": users_active,
+            },
+            "config": {
+                "arxiv_categories": cfg.arxiv_categories,
+                "allowed_topics": cfg.allowed_topics,
+                "relevance_threshold": cfg.relevance_threshold,
+                "arxiv_max_results": cfg.arxiv_max_results,
+                "citation_weight": cfg.citation_weight,
+                "quality_gate_min": cfg.quality_gate_min,
+            },
+        }
+    finally:
+        conn.close()
