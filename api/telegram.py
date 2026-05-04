@@ -1,5 +1,6 @@
 import json
 import hmac
+import logging
 import os
 import re
 from http.server import BaseHTTPRequestHandler
@@ -386,16 +387,17 @@ def handle_chat(user_id: int, chat_id: int, text: str, conn, cfg):
         return
 
     context = get_conversation_context(session_id, cfg.chat_context_window, conn)
-    store_message(session_id, "user", user_message, 0, conn)
 
     try:
         response_text, tokens_used = generate_chat_response(
             context, user_message, cfg.chat_model, cfg.openrouter_api_key, cfg.openrouter_timeout
         )
     except Exception:
+        logging.exception("Chat LLM call failed for user_id=%d", user_id)
         send_message(chat_id, "Sorry, I couldn't generate a response. Please try again.", cfg.telegram_bot_token)
         return
 
+    store_message(session_id, "user", user_message, 0, conn)
     store_message(session_id, "assistant", response_text, tokens_used, conn)
     send_message(chat_id, response_text, cfg.telegram_bot_token)
 
