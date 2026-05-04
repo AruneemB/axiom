@@ -529,10 +529,11 @@ class TestExpandCallback:
     def test_expand_callback_dispatches_to_handle_expand(self, mock_post):
         mock_conn = self._make_conn_with_user()
         cfg = _make_config()
-        cb = {"from": {"id": 123}, "data": "expand:42", "id": "cb1"}
+        cb = {"from": {"id": 123}, "data": "expand:42", "id": "cb1",
+              "message": {"chat": {"id": 456}}}
         with patch("api.telegram.handle_expand") as mock_expand:
             handle_callback(cb, mock_conn, cfg)
-            mock_expand.assert_called_once_with(123, None, "/expand 42", mock_conn, cfg)
+            mock_expand.assert_called_once_with(123, 456, "/expand 42", mock_conn, cfg)
 
     @patch("httpx.post")
     def test_expand_callback_invalid_id_ignored(self, mock_post):

@@ -218,7 +218,7 @@ def handle_callback(cb: dict, conn, cfg, req_ip: str = "unknown"):
     #   "expand:{idea_id}"
     if data.startswith("expand:"):
         parts = data.split(":")
-        if len(parts) == 2 and parts[1].isdigit():
+        if len(parts) == 2 and parts[1].isdigit() and chat_id is not None:
             handle_expand(user_id, chat_id, f"/expand {parts[1]}", conn, cfg)
     elif data.startswith("feedback:"):
         _, idea_id_str, value_str = data.split(":")
