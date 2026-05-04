@@ -95,17 +95,22 @@ def run_deliver(cfg) -> dict:
         print(f"[deliver] candidate paper: {paper['id'] if paper else None}, "
               f"{len(active_users)} active users")
 
-        if not paper or not active_users:
-            reason = "no papers or no active users"
-            print(f"[deliver] early exit: {reason}")
-            _notify_owner(cfg, status="skipped", reason=reason)
+        if not paper:
+            print("[deliver] early exit: no unprocessed papers available")
+            _notify_owner(cfg, status="skipped", reason="no_papers")
             return {
                 "sent": 0,
-                "reason": reason,
-                "stats": {
-                    "papers_found": 1 if paper else 0,
-                    "active_users": len(active_users),
-                }
+                "reason": "no_papers",
+                "stats": {"papers_found": 0, "active_users": len(active_users)},
+            }
+
+        if not active_users:
+            print("[deliver] early exit: no active users")
+            _notify_owner(cfg, status="skipped", reason="no_active_users")
+            return {
+                "sent": 0,
+                "reason": "no_active_users",
+                "stats": {"papers_found": 1, "active_users": 0},
             }
 
         # Select model (deep-dive on configured day)
@@ -209,6 +214,16 @@ def _notify_owner(cfg, status: str, **details) -> None:
         text = (
             f"[Axiom] Delivered idea #{details.get('idea_id', '?')} at {ts}.\n"
             f"Paper: {details.get('paper_id', '?')} | Model: {details.get('model', '?')}"
+        )
+    elif details.get('reason') == "no_papers":
+        text = (
+            f"[Axiom] Delivery skipped at {ts}.\n"
+            f"No unprocessed papers in pipeline. Check /api/status for pipeline state."
+        )
+    elif details.get('reason') == "no_active_users":
+        text = (
+            f"[Axiom] Delivery skipped at {ts}.\n"
+            f"No active users. Send /start to the bot to subscribe."
         )
     else:
         text = (
