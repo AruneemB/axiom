@@ -3,9 +3,14 @@ Chat session management and LLM integration for conversational features.
 """
 
 import json
+import logging
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Optional
 import httpx
+
+_prompts_dir = Path(__file__).resolve().parent.parent / "prompts"
+_CHAT_SYSTEM_TEMPLATE = (_prompts_dir / "chat_system.txt").read_text(encoding="utf-8")
 
 
 def get_or_create_session(user_id: int, paper_id: str | None, idea_id: int | None,
@@ -146,19 +151,15 @@ def generate_chat_response(context: dict, user_message: str,
     Call OpenRouter API with context + new user message.
     Returns (response_text, tokens_used).
     """
-    # Load system prompt template
-    with open("prompts/chat_system.txt", "r", encoding="utf-8") as f:
-        system_template = f.read()
-
-    # Format system prompt
-    system_prompt = system_template.format(
-        title=context["title"],
-        abstract=context["abstract"],
-        hypothesis=context["hypothesis"],
-        method=context["method"],
-        dataset=context["dataset"],
-        novelty_score=context["novelty_score"],
-        feasibility_score=context["feasibility_score"]
+    system_prompt = (
+        _CHAT_SYSTEM_TEMPLATE
+        .replace("{title}", str(context["title"] or ""))
+        .replace("{abstract}", str(context["abstract"] or ""))
+        .replace("{hypothesis}", str(context["hypothesis"] or ""))
+        .replace("{method}", str(context["method"] or ""))
+        .replace("{dataset}", str(context["dataset"] or ""))
+        .replace("{novelty_score}", str(context["novelty_score"] or ""))
+        .replace("{feasibility_score}", str(context["feasibility_score"] or ""))
     )
 
     # Build messages array
