@@ -53,10 +53,10 @@ class handler(BaseHTTPRequestHandler):
 
 
 def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
-    paper = _find_paper_for_spark(conn, cfg)
+    paper, tier_results = _find_paper_for_spark(conn, cfg)
     if not paper:
         send_message(chat_id, "No papers available right now. Try again later.", cfg.telegram_bot_token)
-        return {"ok": False, "reason": "no_papers"}
+        return {"ok": False, "reason": "no_papers", "tier_results": tier_results}
 
     idea, debug = synthesize_idea(
         title=paper["title"],
@@ -109,7 +109,9 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
     return {"ok": True, "idea_id": idea_id}
 
 
-def _find_paper_for_spark(conn, cfg) -> dict | None:
+def _find_paper_for_spark(conn, cfg) -> tuple[dict | None, dict]:
+    tiers = {}
+
     # Tier 1: Unprocessed papers in DB (citation-boosted)
     with conn.cursor() as cur:
         cur.execute(
@@ -123,8 +125,10 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
             (cfg.citation_weight,),
         )
         paper = cur.fetchone()
+    tiers["tier1_unprocessed"] = 1 if paper else 0
+    print(f"[spark] Tier 1: {tiers['tier1_unprocessed']} unprocessed papers found")
     if paper:
-        return paper
+        return paper, tiers
 
     # Tier 1.5: Papers processed by deliver but not yet sparked on-demand (citation-boosted)
     with conn.cursor() as cur:
@@ -143,8 +147,10 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
             (cfg.citation_weight,),
         )
         paper = cur.fetchone()
+    tiers["tier1_5_processed_not_sparked"] = 1 if paper else 0
+    print(f"[spark] Tier 1.5: {tiers['tier1_5_processed_not_sparked']} processed-not-sparked papers found")
     if paper:
-        return paper
+        return paper, tiers
 
     # Tier 2: Expanded arXiv fetch (7-day window)
     arxiv_papers = fetch_recent_papers(
@@ -152,6 +158,7 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
         max_results=cfg.arxiv_max_results,
         hours=168,
     )
+    arxiv_raw_count = len(arxiv_papers) if arxiv_papers else 0
     if arxiv_papers:
         # Exclude papers that already have an on-demand idea
         # But allow re-evaluation of skipped papers and delivered papers
@@ -182,6 +189,12 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
             score, keyword_hits = relevance_filter.score(p.abstract)
             if keyword_hits:  # Any keyword match — user explicitly asked for an idea
                 scored.append((score, keyword_hits, p))
+        tiers["tier2_arxiv_fetched"] = arxiv_raw_count
+        tiers["tier2_arxiv_keyword_matches"] = len(scored)
+        print(
+            f"[spark] Tier 2: arXiv returned {arxiv_raw_count} papers; "
+            f"{len(arxiv_papers)} after dedup filter; {len(scored)} matched keywords"
+        )
         if scored:
             scored.sort(key=lambda x: x[0], reverse=True)
             best_score, best_hits, best_paper = scored[0]
@@ -214,7 +227,11 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
                 "title": best_paper.title,
                 "abstract": best_paper.abstract,
                 "url": best_paper.url,
-            }
+            }, tiers
+    else:
+        tiers["tier2_arxiv_fetched"] = arxiv_raw_count
+        tiers["tier2_arxiv_keyword_matches"] = 0
+        print(f"[spark] Tier 2: arXiv returned {arxiv_raw_count} papers; 0 matched keywords")
 
     # Tier 3: Re-evaluate skipped papers in DB against current topics
     with conn.cursor() as cur:
@@ -237,6 +254,12 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
             score, keyword_hits = relevance_filter.score(p["abstract"])
             if keyword_hits:
                 scored.append((score, keyword_hits, p))
+        tiers["tier3_skipped_reevaluated"] = len(skipped_papers)
+        tiers["tier3_skipped_keyword_matches"] = len(scored)
+        print(
+            f"[spark] Tier 3: {len(skipped_papers)} skipped papers re-evaluated; "
+            f"{len(scored)} matched keywords"
+        )
         if scored:
             scored.sort(key=lambda x: x[0], reverse=True)
             best_score, best_hits, best_paper = scored[0]
@@ -249,10 +272,15 @@ def _find_paper_for_spark(conn, cfg) -> dict | None:
                     (best_score, best_hits, best_paper["id"]),
                 )
                 conn.commit()
-            return best_paper
+            return best_paper, tiers
+    else:
+        tiers["tier3_skipped_reevaluated"] = 0
+        tiers["tier3_skipped_keyword_matches"] = 0
+        print("[spark] Tier 3: no skipped papers in DB to re-evaluate")
 
     # Tier 4: Nothing found
-    return None
+    print("[spark] Tier 4: exhausted all tiers — no paper found")
+    return None, tiers
 
 
 def _store_spark_idea(conn, paper_id: str, idea: dict, embedding: list[float] | None, user_id: int) -> int:
