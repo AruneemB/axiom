@@ -15,14 +15,13 @@ class handler(BaseHTTPRequestHandler):
         auth_header = self.headers.get("Authorization", "")
         bearer_token = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else None
         key_param = params.get("key", [None])[0]
-
-        # Public health check (no secret) — minimal response
-        if cfg.cron_secret not in (bearer_token, key_param):
-            self._respond(200, {"status": "active"})
-            return
+        authenticated = cfg.cron_secret in (bearer_token, key_param)
 
         try:
-            self._respond(200, run_status(cfg))
+            result = run_status(cfg)
+            if not authenticated:
+                result.pop("config", None)
+            self._respond(200, result)
         except Exception as e:
             import traceback
             print(f"[status] ERROR: {traceback.format_exc()}")
@@ -81,6 +80,10 @@ def run_status(cfg) -> dict:
 
         return {
             "status": "active",
+            "total_papers": total,
+            "total_ideas": total_ideas,
+            "last_fetch": latest_published,
+            "last_deliver": last_deliver,
             "papers": {
                 "total": total,
                 "available": available,
