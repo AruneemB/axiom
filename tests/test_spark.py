@@ -23,6 +23,7 @@ def _make_config(**overrides):
         "database_url": "postgresql://localhost/test",
         "openrouter_api_key": "key",
         "default_model": "m",
+        "fallback_model": "m-fallback",
         "deepdive_model": "m2",
         "deepdive_day": 4,
         "cron_secret": "cron",
@@ -30,6 +31,8 @@ def _make_config(**overrides):
         "arxiv_max_results": 50,
         "allowed_topics": ["momentum"],
         "relevance_threshold": 0.65,
+        "quality_gate_min": 11,
+        "citation_weight": 0.02,
         "embedding_model": "openai/text-embedding-3-small",
     }
     defaults.update(overrides)
@@ -190,7 +193,7 @@ class TestFindPaperForSpark:
         mock_cursor.fetchone.return_value = None
         # Tier 3: top papers
         mock_cursor.fetchall.return_value = [
-            {"id": "2305_99999", "title": "T", "abstract": "A", "url": "u"},
+            {"id": "2305_99999", "title": "T", "abstract": "momentum strategy paper", "url": "u"},
         ]
         mock_conn = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
