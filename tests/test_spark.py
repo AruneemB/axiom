@@ -167,6 +167,30 @@ class TestRunSpark:
                         if "UPDATE papers SET processed" in str(c)]
         assert len(update_calls) == 0
 
+    @patch("api.spark.send_message", side_effect=Exception("also down"))
+    @patch("api.spark.send_idea_message", side_effect=Exception("telegram down"))
+    @patch("api.spark._store_spark_idea")
+    @patch("api.spark.embed_text")
+    @patch("api.spark.synthesize_idea")
+    @patch("api.spark._find_paper_for_spark")
+    def test_rollback_notice_failure_still_returns_clean_result(
+            self, mock_find, mock_synth, mock_embed, mock_store, mock_send_idea, mock_send_msg):
+        mock_find.return_value = ({"id": "2305_12345", "title": "Test Paper", "abstract": "A",
+                                   "url": "https://arxiv.org/abs/2305.12345"}, {})
+        mock_synth.return_value = ({
+            "hypothesis": "H1", "method": "M1", "dataset": "D1",
+            "novelty_score": 7, "feasibility_score": 6,
+        }, "")
+        mock_embed.return_value = [0.1] * 256
+        mock_store.return_value = 55
+        mock_conn, mock_cursor = _mock_conn_with_cursor()
+        cfg = _make_config()
+
+        result = run_spark(123, 456, mock_conn, cfg)
+
+        assert result["ok"] is False
+        assert result["reason"] == "telegram_send_failed"
+
 
 # ---------------------------------------------------------------------------
 # _find_paper_for_spark tiers

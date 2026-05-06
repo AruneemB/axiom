@@ -109,7 +109,10 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM ideas WHERE id = %s", (idea_id,))
             conn.commit()
-        send_message(chat_id, "Failed to deliver the idea. Please try /spark again.", cfg.telegram_bot_token)
+        try:
+            send_message(chat_id, "Failed to deliver the idea. Please try /spark again.", cfg.telegram_bot_token)
+        except Exception as notify_err:
+            print(f"[spark] failed to send rollback notice: {notify_err}")
         return {"ok": False, "reason": "telegram_send_failed"}
 
     # Mark paper as processed so it won't be selected again
