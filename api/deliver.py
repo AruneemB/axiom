@@ -185,6 +185,17 @@ def run_deliver(cfg) -> dict:
                 print(f"[deliver] failed to send to user {user_id}: {e}")
                 failed_users.append(user_id)
 
+        if len(failed_users) == len(active_users):
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM ideas WHERE id = %s", (idea_id,))
+                conn.commit()
+            _notify_owner(cfg, status="skipped", reason="all_telegram_sends_failed", paper_id=paper_id)
+            return {
+                "sent": 0,
+                "reason": "all_telegram_sends_failed",
+                "details": {"failed_users": len(failed_users)},
+            }
+
         mark_processed(conn, paper_id)
         _notify_owner(cfg, status="sent", idea_id=idea_id, paper_id=paper_id, model=model)
         print(f"[deliver] successfully processed and sent idea {idea_id}")

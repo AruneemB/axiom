@@ -94,20 +94,31 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
 
     idea_id = _store_spark_idea(conn, paper["id"], idea, idea_embedding, user_id)
 
+    try:
+        send_idea_message(
+            chat_id=chat_id,
+            idea_id=idea_id,
+            title=paper["title"],
+            url=paper["url"],
+            idea=idea,
+            bot_token=cfg.telegram_bot_token,
+            expand_enabled=cfg.expand_enabled,
+        )
+    except Exception as e:
+        print(f"[spark] Telegram send failed, rolling back: {e}")
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM ideas WHERE id = %s", (idea_id,))
+            conn.commit()
+        try:
+            send_message(chat_id, "Failed to deliver the idea. Please try /spark again.", cfg.telegram_bot_token)
+        except Exception as notify_err:
+            print(f"[spark] failed to send rollback notice: {notify_err}")
+        return {"ok": False, "reason": "telegram_send_failed"}
+
     # Mark paper as processed so it won't be selected again
     with conn.cursor() as cur:
         cur.execute("UPDATE papers SET processed=TRUE WHERE id=%s", (paper["id"],))
         conn.commit()
-
-    send_idea_message(
-        chat_id=chat_id,
-        idea_id=idea_id,
-        title=paper["title"],
-        url=paper["url"],
-        idea=idea,
-        bot_token=cfg.telegram_bot_token,
-        expand_enabled=cfg.expand_enabled,
-    )
 
     return {"ok": True, "idea_id": idea_id}
 

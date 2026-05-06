@@ -59,7 +59,7 @@ class TestRunSpark:
     @patch("api.spark.send_message")
     @patch("api.spark._find_paper_for_spark")
     def test_no_papers_sends_message(self, mock_find, mock_send):
-        mock_find.return_value = None
+        mock_find.return_value = (None, {})
         mock_conn, _ = _mock_conn_with_cursor()
         cfg = _make_config()
 
@@ -74,10 +74,8 @@ class TestRunSpark:
     @patch("api.spark.synthesize_idea")
     @patch("api.spark._find_paper_for_spark")
     def test_llm_failure_sends_error(self, mock_find, mock_synth, mock_send):
-        mock_find.return_value = {
-            "id": "2305_12345", "title": "T", "abstract": "A",
-            "url": "https://arxiv.org/abs/2305.12345",
-        }
+        mock_find.return_value = ({"id": "2305_12345", "title": "T", "abstract": "A",
+                                   "url": "https://arxiv.org/abs/2305.12345"}, {})
         mock_synth.return_value = (None, "test debug")
         mock_conn, _ = _mock_conn_with_cursor()
         cfg = _make_config()
@@ -92,10 +90,8 @@ class TestRunSpark:
     @patch("api.spark.synthesize_idea")
     @patch("api.spark._find_paper_for_spark")
     def test_below_quality_gate_sends_error(self, mock_find, mock_synth, mock_send):
-        mock_find.return_value = {
-            "id": "2305_12345", "title": "T", "abstract": "A",
-            "url": "https://arxiv.org/abs/2305.12345",
-        }
+        mock_find.return_value = ({"id": "2305_12345", "title": "T", "abstract": "A",
+                                   "url": "https://arxiv.org/abs/2305.12345"}, {})
         mock_synth.return_value = ({
             "hypothesis": "H", "method": "M", "dataset": "D",
             "novelty_score": 3, "feasibility_score": 3,
@@ -115,10 +111,8 @@ class TestRunSpark:
     @patch("api.spark._find_paper_for_spark")
     def test_success_stores_and_sends_idea(self, mock_find, mock_synth, mock_embed,
                                             mock_store, mock_send_idea):
-        mock_find.return_value = {
-            "id": "2305_12345", "title": "Test Paper", "abstract": "A",
-            "url": "https://arxiv.org/abs/2305.12345",
-        }
+        mock_find.return_value = ({"id": "2305_12345", "title": "Test Paper", "abstract": "A",
+                                   "url": "https://arxiv.org/abs/2305.12345"}, {})
         mock_synth.return_value = ({
             "hypothesis": "H1", "method": "M1", "dataset": "D1",
             "novelty_score": 7, "feasibility_score": 6,
@@ -142,6 +136,61 @@ class TestRunSpark:
         ]
         assert len(update_calls) == 1
 
+    @patch("api.spark.send_message")
+    @patch("api.spark.send_idea_message", side_effect=Exception("telegram down"))
+    @patch("api.spark._store_spark_idea")
+    @patch("api.spark.embed_text")
+    @patch("api.spark.synthesize_idea")
+    @patch("api.spark._find_paper_for_spark")
+    def test_telegram_send_failure_rolls_back(self, mock_find, mock_synth, mock_embed,
+                                               mock_store, mock_send_idea, mock_send_msg):
+        mock_find.return_value = ({"id": "2305_12345", "title": "Test Paper", "abstract": "A",
+                                   "url": "https://arxiv.org/abs/2305.12345"}, {})
+        mock_synth.return_value = ({
+            "hypothesis": "H1", "method": "M1", "dataset": "D1",
+            "novelty_score": 7, "feasibility_score": 6,
+        }, "")
+        mock_embed.return_value = [0.1] * 256
+        mock_store.return_value = 55
+        mock_conn, mock_cursor = _mock_conn_with_cursor()
+        cfg = _make_config()
+
+        result = run_spark(123, 456, mock_conn, cfg)
+
+        assert result["ok"] is False
+        assert result["reason"] == "telegram_send_failed"
+        # Idea is deleted and paper is NOT marked processed
+        delete_calls = [c for c in mock_cursor.execute.call_args_list
+                        if "DELETE FROM ideas" in str(c)]
+        assert len(delete_calls) == 1
+        update_calls = [c for c in mock_cursor.execute.call_args_list
+                        if "UPDATE papers SET processed" in str(c)]
+        assert len(update_calls) == 0
+
+    @patch("api.spark.send_message", side_effect=Exception("also down"))
+    @patch("api.spark.send_idea_message", side_effect=Exception("telegram down"))
+    @patch("api.spark._store_spark_idea")
+    @patch("api.spark.embed_text")
+    @patch("api.spark.synthesize_idea")
+    @patch("api.spark._find_paper_for_spark")
+    def test_rollback_notice_failure_still_returns_clean_result(
+            self, mock_find, mock_synth, mock_embed, mock_store, mock_send_idea, mock_send_msg):
+        mock_find.return_value = ({"id": "2305_12345", "title": "Test Paper", "abstract": "A",
+                                   "url": "https://arxiv.org/abs/2305.12345"}, {})
+        mock_synth.return_value = ({
+            "hypothesis": "H1", "method": "M1", "dataset": "D1",
+            "novelty_score": 7, "feasibility_score": 6,
+        }, "")
+        mock_embed.return_value = [0.1] * 256
+        mock_store.return_value = 55
+        mock_conn, mock_cursor = _mock_conn_with_cursor()
+        cfg = _make_config()
+
+        result = run_spark(123, 456, mock_conn, cfg)
+
+        assert result["ok"] is False
+        assert result["reason"] == "telegram_send_failed"
+
 
 # ---------------------------------------------------------------------------
 # _find_paper_for_spark tiers
@@ -155,9 +204,9 @@ class TestFindPaperForSpark:
         mock_cursor.fetchone.return_value = paper_row
         cfg = _make_config()
 
-        result = _find_paper_for_spark(mock_conn, cfg)
+        paper, tiers = _find_paper_for_spark(mock_conn, cfg)
 
-        assert result == paper_row
+        assert paper == paper_row
 
     @patch("api.spark.fetch_recent_papers")
     def test_tier2_excludes_papers_already_in_db(self, mock_fetch):
@@ -180,10 +229,10 @@ class TestFindPaperForSpark:
         mock_fetch.return_value = [arxiv_paper]
         cfg = _make_config()
 
-        result = _find_paper_for_spark(mock_conn, cfg)
+        paper, tiers = _find_paper_for_spark(mock_conn, cfg)
 
         # Paper was in DB so Tier 2 skipped it, Tier 3 also empty → None
-        assert result is None
+        assert paper is None
 
     @patch("api.spark.fetch_recent_papers")
     def test_tier3_returns_random_archived_paper(self, mock_fetch):
@@ -202,9 +251,9 @@ class TestFindPaperForSpark:
         mock_fetch.return_value = []
         cfg = _make_config()
 
-        result = _find_paper_for_spark(mock_conn, cfg)
+        paper, tiers = _find_paper_for_spark(mock_conn, cfg)
 
-        assert result["id"] == "2305_99999"
+        assert paper["id"] == "2305_99999"
 
     @patch("api.spark.fetch_recent_papers")
     def test_tier4_returns_none(self, mock_fetch):
@@ -218,6 +267,6 @@ class TestFindPaperForSpark:
         mock_fetch.return_value = []
         cfg = _make_config()
 
-        result = _find_paper_for_spark(mock_conn, cfg)
+        paper, tiers = _find_paper_for_spark(mock_conn, cfg)
 
-        assert result is None
+        assert paper is None
