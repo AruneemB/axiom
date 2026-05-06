@@ -100,6 +100,38 @@ class TestSendIdeaMessage:
         assert len(buttons) == 3
 
     @patch("lib.telegram_client.httpx.post")
+    def test_expand_button_absent_by_default(self, mock_post):
+        mock_post.return_value = MagicMock(raise_for_status=MagicMock())
+        send_idea_message(123, 42, "Title", "https://arxiv.org/abs/123", self._make_idea(), "tok")
+        keyboard = mock_post.call_args[1]["json"]["reply_markup"]["inline_keyboard"]
+        all_callbacks = [b.get("callback_data", "") for row in keyboard for b in row]
+        assert not any(c.startswith("expand:") for c in all_callbacks)
+
+    @patch("lib.telegram_client.httpx.post")
+    def test_expand_button_present_when_enabled(self, mock_post):
+        mock_post.return_value = MagicMock(raise_for_status=MagicMock())
+        send_idea_message(
+            123, 42, "Title", "https://arxiv.org/abs/123", self._make_idea(), "tok",
+            expand_enabled=True,
+        )
+        keyboard = mock_post.call_args[1]["json"]["reply_markup"]["inline_keyboard"]
+        assert len(keyboard) == 2
+        assert keyboard[1][0]["callback_data"] == "expand:42"
+
+    @patch("lib.telegram_client.httpx.post")
+    def test_expand_button_on_second_row(self, mock_post):
+        mock_post.return_value = MagicMock(raise_for_status=MagicMock())
+        send_idea_message(
+            123, 42, "Title", "https://arxiv.org/abs/123", self._make_idea(), "tok",
+            expand_enabled=True,
+        )
+        keyboard = mock_post.call_args[1]["json"]["reply_markup"]["inline_keyboard"]
+        # First row still has 3 buttons
+        assert len(keyboard[0]) == 3
+        # Second row has only the Expand button
+        assert len(keyboard[1]) == 1
+
+    @patch("lib.telegram_client.httpx.post")
     def test_feedback_callback_data_format(self, mock_post):
         mock_post.return_value = MagicMock(raise_for_status=MagicMock())
         send_idea_message(123, 42, "Title", "https://arxiv.org/abs/123", self._make_idea(), "tok")

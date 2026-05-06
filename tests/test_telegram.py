@@ -13,7 +13,8 @@ from api.telegram import (  # noqa: E402
     handler, handle_message, handle_callback,
     handle_status, handle_topics, handle_pause,
     handle_resume, handle_feedback_summary,
-    handle_spark, handle_report, handle_chat, handle_context
+    handle_spark, handle_report, handle_chat, handle_context,
+    handle_expand,
 )
 
 
@@ -502,9 +503,67 @@ class TestHandleReport:
             mock_conn = MagicMock()
             mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
             mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-            
+
             cfg = _make_config(github_token="gh_tok", max_github_issues_per_day=3)
             handle_report(123, 456, "/report my email is a@b.com", {}, mock_conn, cfg)
-            
+
             mock_send.assert_called()
             assert "personal information" in mock_send.call_args[0][1]
+
+
+# ---------------------------------------------------------------------------
+# Callback: expand button
+# ---------------------------------------------------------------------------
+
+class TestExpandCallback:
+
+    def _make_conn_with_user(self):
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = {"user_id": 123, "paused": False, "pause_until": None}
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        return mock_conn
+
+    @patch("httpx.post")
+    def test_expand_callback_dispatches_to_handle_expand(self, mock_post):
+        mock_conn = self._make_conn_with_user()
+        cfg = _make_config()
+        cb = {"from": {"id": 123}, "data": "expand:42", "id": "cb1",
+              "message": {"chat": {"id": 456}}}
+        with patch("api.telegram.handle_expand") as mock_expand:
+            handle_callback(cb, mock_conn, cfg)
+            mock_expand.assert_called_once_with(123, 456, "/expand 42", mock_conn, cfg)
+
+    @patch("httpx.post")
+    def test_expand_callback_invalid_id_ignored(self, mock_post):
+        mock_conn = self._make_conn_with_user()
+        cfg = _make_config()
+        cb = {"from": {"id": 123}, "data": "expand:abc", "id": "cb2"}
+        with patch("api.telegram.handle_expand") as mock_expand:
+            handle_callback(cb, mock_conn, cfg)
+            mock_expand.assert_not_called()
+
+    @patch("httpx.post")
+    def test_expand_callback_unauthorized_user_ignored(self, mock_post):
+        mock_cursor = MagicMock()
+        mock_cursor.fetchone.return_value = None  # unknown user
+        mock_conn = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        cfg = _make_config()
+        cb = {"from": {"id": 99999}, "data": "expand:42", "id": "cb3"}
+        with patch("api.telegram.handle_expand") as mock_expand:
+            handle_callback(cb, mock_conn, cfg)
+            mock_expand.assert_not_called()
+
+    @patch("httpx.post")
+    def test_expand_callback_still_answers_callback_query(self, mock_post):
+        mock_conn = self._make_conn_with_user()
+        cfg = _make_config()
+        cb = {"from": {"id": 123}, "data": "expand:42", "id": "cb-expand"}
+        with patch("api.telegram.handle_expand"):
+            handle_callback(cb, mock_conn, cfg)
+        mock_post.assert_called_once()
+        assert "answerCallbackQuery" in mock_post.call_args[0][0]
+        assert mock_post.call_args[1]["json"]["callback_query_id"] == "cb-expand"

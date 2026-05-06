@@ -37,10 +37,10 @@ def test_generate_chat_response_builds_correct_payload(mock_client_class):
         "usage": {"total_tokens": 100}
     }
     mock_response.raise_for_status = MagicMock()
-    
+
     mock_client_instance = mock_client_class.return_value.__enter__.return_value
     mock_client_instance.post.return_value = mock_response
-    
+
     context = {
         "title": "Paper Title",
         "abstract": "Abstract",
@@ -51,14 +51,12 @@ def test_generate_chat_response_builds_correct_payload(mock_client_class):
         "feasibility_score": 7,
         "messages": [{"role": "user", "content": "Previous hi"}]
     }
-    
-    # Ensure prompts/chat_system.txt exists or mock open
-    with patch("builtins.open", MagicMock(return_value=MagicMock(__enter__=MagicMock(return_value=MagicMock(read=MagicMock(return_value="System {title}")))))):
-        response, tokens = generate_chat_response(context, "New msg", "model", "key", 10)
-    
+
+    response, tokens = generate_chat_response(context, "New msg", "model", "key", 10)
+
     assert response == "Test response"
     assert tokens == 100
-    
+
     # Verify payload
     args, kwargs = mock_client_instance.post.call_args
     payload = kwargs["json"]
@@ -67,3 +65,31 @@ def test_generate_chat_response_builds_correct_payload(mock_client_class):
     assert payload["messages"][0]["role"] == "system"
     assert payload["messages"][1]["content"] == "Previous hi"
     assert payload["messages"][2]["content"] == "New msg"
+
+
+@patch("httpx.Client")
+def test_generate_chat_response_handles_curly_braces_in_paper_content(mock_client_class):
+    """Regression: paper content with {} must not raise KeyError via str.format()."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "choices": [{"message": {"content": "OK"}}],
+        "usage": {"total_tokens": 10}
+    }
+    mock_response.raise_for_status = MagicMock()
+    mock_client_instance = mock_client_class.return_value.__enter__.return_value
+    mock_client_instance.post.return_value = mock_response
+
+    context = {
+        "title": "Neural SDEs on {R}^n with {F}-adapted coefficients",
+        "abstract": "We study the class {x | ||x|| < 1} under rough paths.",
+        "hypothesis": "The process {X_t} satisfies the martingale property.",
+        "method": "Ito calculus with {dW_t} increments",
+        "dataset": "Synthetic {OHLCV} tick data",
+        "novelty_score": 8,
+        "feasibility_score": 7,
+        "messages": []
+    }
+
+    # Should not raise — curly braces in content must be treated as literals
+    response, tokens = generate_chat_response(context, "Explain the method.", "model", "key", 10)
+    assert response == "OK"

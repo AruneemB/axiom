@@ -246,6 +246,7 @@ class TestRunDeliverEarlyExit:
         cfg = _make_config()
         result = run_deliver(cfg)
         assert result["sent"] == 0
+        assert result["reason"] == "no_papers"
         assert "stats" in result
         assert result["stats"]["papers_found"] == 0
         mock_conn.close.assert_called_once()
@@ -257,6 +258,7 @@ class TestRunDeliverEarlyExit:
         cfg = _make_config()
         result = run_deliver(cfg)
         assert result["sent"] == 0
+        assert result["reason"] == "no_active_users"
         mock_conn.close.assert_called_once()
 
 
@@ -548,6 +550,20 @@ class TestNotifyOwner:
         _notify_owner(cfg, status="skipped", reason="below_quality_gate", paper_id="p1")
         text = mock_send.call_args[0][1]
         assert "below_quality_gate" in text
+
+    @patch("api.deliver.send_message")
+    def test_no_papers_message_mentions_pipeline(self, mock_send):
+        cfg = _make_config(telegram_chat_ids=[1])
+        _notify_owner(cfg, status="skipped", reason="no_papers")
+        text = mock_send.call_args[0][1]
+        assert "No unprocessed papers" in text
+
+    @patch("api.deliver.send_message")
+    def test_no_active_users_message_mentions_start(self, mock_send):
+        cfg = _make_config(telegram_chat_ids=[1])
+        _notify_owner(cfg, status="skipped", reason="no_active_users")
+        text = mock_send.call_args[0][1]
+        assert "No active users" in text
 
     @patch("api.deliver.send_message", side_effect=Exception("network error"))
     def test_swallows_send_errors(self, mock_send):

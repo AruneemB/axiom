@@ -29,4 +29,4 @@ RESPONSE STYLE:
 - Avoid jargon unless necessary
 
 SPECIAL COMMANDS:
-When user says "regenerate", create a new research idea following the same JSON structure: {{hypothesis, method, dataset, novelty_score, feasibility_score}}
+When user says "regenerate", create a new research idea following the same JSON structure: {hypothesis, method, dataset, novelty_score, feasibility_score}

@@ -102,6 +102,7 @@ def run_spark(user_id: int, chat_id: int, conn, cfg) -> dict:
             url=paper["url"],
             idea=idea,
             bot_token=cfg.telegram_bot_token,
+            expand_enabled=cfg.expand_enabled,
         )
     except Exception as e:
         print(f"[spark] Telegram send failed, rolling back: {e}")

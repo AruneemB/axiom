@@ -1,5 +1,6 @@
 import json
 import hmac
+import logging
 import os
 import re
 from http.server import BaseHTTPRequestHandler
@@ -211,8 +212,16 @@ def handle_callback(cb: dict, conn, cfg, req_ip: str = "unknown"):
             _check_and_apply_auto_suspend(user_id, cb_chat_id, conn, cfg)
         return
 
-    # Expected data format: "feedback:{idea_id}:{value}" where value is 1 or -1
-    if data.startswith("feedback:"):
+    chat_id = cb.get("message", {}).get("chat", {}).get("id")
+
+    # Expected data formats:
+    #   "feedback:{idea_id}:{value}" where value is 1 or -1
+    #   "expand:{idea_id}"
+    if data.startswith("expand:"):
+        parts = data.split(":")
+        if len(parts) == 2 and parts[1].isdigit() and chat_id is not None:
+            handle_expand(user_id, chat_id, f"/expand {parts[1]}", conn, cfg)
+    elif data.startswith("feedback:"):
         _, idea_id_str, value_str = data.split(":")
         idea_id = int(idea_id_str)
         value = int(value_str)
@@ -386,16 +395,17 @@ def handle_chat(user_id: int, chat_id: int, text: str, conn, cfg):
         return
 
     context = get_conversation_context(session_id, cfg.chat_context_window, conn)
-    store_message(session_id, "user", user_message, 0, conn)
 
     try:
         response_text, tokens_used = generate_chat_response(
             context, user_message, cfg.chat_model, cfg.openrouter_api_key, cfg.openrouter_timeout
         )
     except Exception:
+        logging.exception("Chat LLM call failed for user_id=%d", user_id)
         send_message(chat_id, "Sorry, I couldn't generate a response. Please try again.", cfg.telegram_bot_token)
         return
 
+    store_message(session_id, "user", user_message, 0, conn)
     store_message(session_id, "assistant", response_text, tokens_used, conn)
     send_message(chat_id, response_text, cfg.telegram_bot_token)
 
