@@ -423,6 +423,67 @@ class TestRunDeliverSuccess:
 
 
 # ---------------------------------------------------------------------------
+# run_deliver: all Telegram sends fail → rollback and leave paper unprocessed
+# ---------------------------------------------------------------------------
+
+class TestRunDeliverAllSendsFail:
+
+    @patch("api.deliver.mark_processed")
+    @patch("api.deliver.send_idea_message", side_effect=Exception("telegram down"))
+    @patch("api.deliver.store_idea", return_value=77)
+    @patch("api.deliver.is_duplicate", return_value=False)
+    @patch("api.deliver.embed_text", return_value=[0.1] * 1536)
+    @patch("api.deliver.synthesize_idea")
+    @patch("api.deliver.get_connection")
+    @patch("api.deliver.datetime")
+    def test_returns_zero_sent(self, mock_dt, mock_conn_fn, mock_synth, mock_embed,
+                               mock_dedup, mock_store, mock_send, mock_mark):
+        mock_dt.utcnow.return_value = datetime(2024, 1, 15)
+        mock_conn = _mock_conn_with_papers(_make_paper(), [123])
+        mock_conn_fn.return_value = mock_conn
+        mock_synth.return_value = (_make_idea(), "")
+        result = run_deliver(_make_config())
+        assert result["sent"] == 0
+        assert result["reason"] == "all_telegram_sends_failed"
+
+    @patch("api.deliver.mark_processed")
+    @patch("api.deliver.send_idea_message", side_effect=Exception("telegram down"))
+    @patch("api.deliver.store_idea", return_value=77)
+    @patch("api.deliver.is_duplicate", return_value=False)
+    @patch("api.deliver.embed_text", return_value=[0.1] * 1536)
+    @patch("api.deliver.synthesize_idea")
+    @patch("api.deliver.get_connection")
+    @patch("api.deliver.datetime")
+    def test_does_not_mark_processed(self, mock_dt, mock_conn_fn, mock_synth, mock_embed,
+                                     mock_dedup, mock_store, mock_send, mock_mark):
+        mock_dt.utcnow.return_value = datetime(2024, 1, 15)
+        mock_conn = _mock_conn_with_papers(_make_paper(), [123])
+        mock_conn_fn.return_value = mock_conn
+        mock_synth.return_value = (_make_idea(), "")
+        run_deliver(_make_config())
+        mock_mark.assert_not_called()
+
+    @patch("api.deliver.mark_processed")
+    @patch("api.deliver.store_idea", return_value=77)
+    @patch("api.deliver.is_duplicate", return_value=False)
+    @patch("api.deliver.embed_text", return_value=[0.1] * 1536)
+    @patch("api.deliver.synthesize_idea")
+    @patch("api.deliver.get_connection")
+    @patch("api.deliver.datetime")
+    def test_partial_failure_still_marks_processed(self, mock_dt, mock_conn_fn,
+                                                    mock_synth, mock_embed,
+                                                    mock_dedup, mock_store, mock_mark):
+        mock_dt.utcnow.return_value = datetime(2024, 1, 15)
+        mock_conn = _mock_conn_with_papers(_make_paper(), [100, 200, 300])
+        mock_conn_fn.return_value = mock_conn
+        mock_synth.return_value = (_make_idea(), "")
+        with patch("api.deliver.send_idea_message", side_effect=[None, Exception("fail"), None]):
+            result = run_deliver(_make_config())
+        assert result["sent"] == 1
+        mock_mark.assert_called_once_with(mock_conn, "p1")
+
+
+# ---------------------------------------------------------------------------
 # run_deliver: deliver_llm_timeout is used (not openrouter_timeout)
 # ---------------------------------------------------------------------------
 
