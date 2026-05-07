@@ -214,6 +214,20 @@ def handle_callback(cb: dict, conn, cfg, req_ip: str = "unknown"):
 
     chat_id = cb.get("message", {}).get("chat", {}).get("id")
 
+    # Acknowledge immediately so Telegram dismisses the loading spinner.
+    # Must happen before any heavy work — Telegram's window for answerCallbackQuery
+    # is 10 seconds, and expand's LLM call can take up to 90 seconds.
+    try:
+        httpx.post(
+            f"https://api.telegram.org/bot{cfg.telegram_bot_token}/answerCallbackQuery",
+            json={"callback_query_id": callback_id},
+            timeout=5,
+        )
+    except httpx.RequestError:
+        logging.exception(
+            "answerCallbackQuery failed (callback_id=%s)", callback_id
+        )
+
     # Expected data formats:
     #   "feedback:{idea_id}:{value}" where value is 1 or -1
     #   "expand:{idea_id}"
@@ -255,13 +269,6 @@ def handle_callback(cb: dict, conn, cfg, req_ip: str = "unknown"):
                     (idea_id,),
                 )
             conn.commit()
-
-    # Acknowledge the callback to remove the "loading" spinner in Telegram
-    import httpx
-    httpx.post(
-        f"https://api.telegram.org/bot{cfg.telegram_bot_token}/answerCallbackQuery",
-        json={"callback_query_id": callback_id},
-    )
 
 
 def handle_status(chat_id: int, conn, cfg):
@@ -540,8 +547,6 @@ def handle_report(user_id: int, chat_id: int, text: str, msg_obj: dict, conn, cf
 
 
 def handle_expand(user_id: int, chat_id: int, text: str, conn, cfg):
-    from lib.openrouter import expand_idea
-
     if not cfg.expand_enabled:
         send_message(chat_id, "Deep-dive synthesis is currently disabled.", cfg.telegram_bot_token)
         return
@@ -582,30 +587,22 @@ def handle_expand(user_id: int, chat_id: int, text: str, conn, cfg):
 
     send_message(chat_id, f"Generating deep-dive for idea #{idea_id}...", cfg.telegram_bot_token)
 
-    sketch, err = expand_idea(
-        title=row["title"],
-        abstract=row["abstract"],
-        hypothesis=row["hypothesis"],
-        method=row["method"],
-        dataset=row["dataset"],
-        model=cfg.expand_model,
-        api_key=cfg.openrouter_api_key,
-        fallback_model=cfg.fallback_model,
-        timeout=cfg.expand_timeout,
-    )
+    # Fire off the heavy LLM work to a dedicated endpoint so the webhook returns fast.
+    # The expand endpoint has maxDuration=300 and sends the result directly to the user.
+    base_url = os.environ.get("VERCEL_URL", "")
+    if base_url and not base_url.startswith("http"):
+        base_url = f"https://{base_url}"
+    if not base_url:
+        base_url = os.environ.get("SPARK_BASE_URL", "https://axiom-aruneemb.vercel.app")
 
-    if sketch is None:
-        send_message(chat_id, "Could not generate deep-dive. Please try again later.", cfg.telegram_bot_token)
-        return
-
-    with conn.cursor() as cur:
-        cur.execute(
-            "UPDATE ideas SET expanded_sketch = %s, expanded_at = NOW() WHERE id = %s",
-            (json.dumps(sketch), idea_id),
+    try:
+        httpx.post(
+            f"{base_url}/api/expand",
+            json={"user_id": user_id, "chat_id": chat_id, "idea_id": idea_id, "secret": cfg.cron_secret},
+            timeout=1,
         )
-    conn.commit()
-
-    send_message(chat_id, _format_expand(idea_id, sketch), cfg.telegram_bot_token)
+    except Exception:
+        pass  # Expected — we don't wait for the response
 
 
 def _format_expand(idea_id: int, sketch: dict) -> str:

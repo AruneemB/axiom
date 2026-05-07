@@ -29,6 +29,7 @@ Axiom is a lightweight, zero-infrastructure pipeline designed for quantitative r
 - **Research Synthesis**: Generates structured hypotheses, implementation methods, and data requirements using OpenRouter (Gemini/Claude).
 - **Interactive Feedback**: Personalize your research feed via simple "Interesting" or "Skip" buttons in Telegram.
 - **On-Demand Ideation**: Request a fresh hypothesis anytime via the `/spark` Telegram command.
+- **Deep-Dive Synthesis**: Expand any idea into a full implementation sketch — pseudocode, statistical tests, a phased timeline, and risk factors — via the `/expand` command or the in-chat button. Results are cached so repeated requests are instant.
 - **Research Chat**: Deep-dive into any generated idea using the `/chat` command to discuss implementation details with an AI quantitative expert.
 - **Issue Reporting**: Submit bug reports or feature requests directly from Telegram to GitHub via the `/report` command.
 - **Dynamic Learning**: The system automatically updates topic weights based on your feedback (auto-synced with your configured topics) to improve future signal quality.
@@ -67,6 +68,9 @@ graph LR
     Feedback -- "/spark" --> Spark(api/spark)
     Spark --> DB
     Spark --> LLM
+    Feedback -- "/expand" --> Expand(api/expand)
+    Expand --> DB
+    Expand --> LLM
 ```
 
 > **[Explore the detailed Architecture](ARCHITECTURE.md)**
