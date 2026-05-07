@@ -217,11 +217,16 @@ def handle_callback(cb: dict, conn, cfg, req_ip: str = "unknown"):
     # Acknowledge immediately so Telegram dismisses the loading spinner.
     # Must happen before any heavy work — Telegram's window for answerCallbackQuery
     # is 10 seconds, and expand's LLM call can take up to 90 seconds.
-    httpx.post(
-        f"https://api.telegram.org/bot{cfg.telegram_bot_token}/answerCallbackQuery",
-        json={"callback_query_id": callback_id},
-        timeout=5,
-    )
+    try:
+        httpx.post(
+            f"https://api.telegram.org/bot{cfg.telegram_bot_token}/answerCallbackQuery",
+            json={"callback_query_id": callback_id},
+            timeout=5,
+        )
+    except httpx.RequestError:
+        logging.exception(
+            "answerCallbackQuery failed (callback_id=%s)", callback_id
+        )
 
     # Expected data formats:
     #   "feedback:{idea_id}:{value}" where value is 1 or -1
